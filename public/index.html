@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>정보처리기사 스마트 테스트 환경</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="phone-wrapper">
+    <div class="header">
+        <span class="header-btn" onclick="exitToDashboard()">Back</span>
+        <span id="header-center-title">기출 메인</span>
+        <span class="header-btn" style="visibility:hidden;">Info</span>
+    </div>
+
+    <div class="body-container" id="view-renderer">
+        </div>
+
+    <div class="tab-fixed-bar">
+        <div class="tab-unit active" id="tab-all" onclick="switchMainTab('all')">
+            <div class="tab-icon-img">📋</div>
+            <div>All</div>
+        </div>
+        <div class="tab-unit" id="tab-my" onclick="switchMainTab('my')">
+            <div class="tab-icon-img">⭐</div>
+            <div>My</div>
+        </div>
+        <div class="tab-unit" onclick="alert('정보처리기사 실전형 맞춤 기출 컴포넌트입니다.')">
+            <div class="tab-icon-img">ℹ️</div>
+            <div>Info</div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "infoprocessing-quiz-app",
+  "version": "1.0.0",
+  "description": "정보처리기사 실기 기출 이론 풀스택 앱",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
