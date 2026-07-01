@@ -60,9 +60,12 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto; /* 내용이 많아지면 이 영역만 스크롤 */
+    -webkit-overflow-scrolling: touch; /* 모바일 환경에서 끊김 없는 부드러운 모멘텀 가속 스크롤 활성화 */
+    overscroll-behavior-y: contain; /* 스크롤이 끝에 닿았을 때 최외곽 페이지가 들썩이며 중간에 멈칫하는 현상 완벽 차단 */
+    scroll-behavior: smooth; /* 스크롤 동작이 급격하게 튀지 않고 부드럽게 이동하도록 제어 */
     box-sizing: border-box;
     background-color: #ffffff;
-    padding-bottom: 20px; /* 불필요해진 대형 패딩 축소 */
+    padding-bottom: 20px;
 }
 .step-panel-header {
     display: flex;
@@ -185,7 +188,7 @@ body {
     box-sizing: border-box;
     z-index: 10;
     flex-shrink: 0; /* 하단 바 높이 고정 */
-}
+}R
 .tab-unit {
     display: flex;
     flex-direction: column;
