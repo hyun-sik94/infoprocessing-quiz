@@ -68,23 +68,118 @@ async function loadMainDashboard() {
     const container = document.getElementById("view-renderer");
     
     container.innerHTML = `
-        <div style="text-align:center; padding-top:40px;">
-            <div style="font-size:55px; margin-bottom:15px;">🎯</div>
+        <div style="text-align:center; padding-top:20px;">
+            <div style="font-size:50px; margin-bottom:10px;">🎯</div>
             <h3 style="color:#2c3e50; margin-bottom:5px;">정처기 실기 기출 풀이</h3>
-            <p style="font-size:13px; color:#7f8c8d; line-height:1.6; margin-bottom:35px; padding:0 15px;">
-                실제 모바일 기기 앱 레이아웃 사양으로 동기화되었습니다. 버튼을 누르면 정답과 해설이 토글 방식으로 열고 닫힙니다.
+            <p style="font-size:13px; color:#7f8c8d; line-height:1.6; margin-bottom:20px; padding:0 15px;">
+                원하는 회차의 년도를 선택하거나 기억나는 정답으로 문제를 검색해 보세요.
             </p>
-            <button class="nav-control-btn" style="width:85%; background-color:#2ecc71;" onclick="triggerNewQuizSession()">
+            
+            <div style="margin-bottom: 15px; padding: 0 30px;">
+                <select id="quiz-year-select" style="width:100%; padding:14px; font-size:15px; border:2px solid #e2e8f0; border-radius:8px; outline:none; color:#2c3e50; font-weight:bold; background-color:#f8f9fa;">
+                    <option value="all">전체 년도 무작위 30문항</option>
+                    <option value="2021">2021년도 기출 이론 선택</option>
+                    <option value="2022">2022년도 기출 이론 선택</option>
+                    <option value="2023">2023년도 기출 이론 선택</option>
+                </select>
+            </div>
+
+            <button class="nav-control-btn" style="width:85%; background-color:#2ecc71; margin-bottom: 25px;" onclick="triggerNewQuizSession()">
                 문제풀기 (새로운 회차 시작)
             </button>
+
+            <div style="border-top: 1px dashed #e2e8f0; padding-top: 20px; margin: 0 30px 20px 30px; text-align: left;">
+                <span class="input-label-text" style="margin-bottom: 6px;">정답으로 문제 찾기</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="search-answer-input" class="input-answer" placeholder="기억나는 정답 용어 입력" style="margin-bottom: 0; flex: 1;" onkeypress="handleSearchKeyPress(event)">
+                    <button class="nav-control-btn" style="padding: 0 16px; width: auto; flex-shrink: 0; background-color: #3498db; height: 48px; border-radius: 8px;" onclick="searchQuestionByAnswer()">검색</button>
+                </div>
+            </div>
         </div>
-        <div style="margin-top:40px; border-left:4px solid #34495e; padding-left:8px; font-weight:bold; color:#34495e; font-size:15px; margin-bottom:15px;">
-            회차별 풀이 이력 및 오답확인
+        
+        <div id="dashboard-dynamic-area">
+            <div style="border-left:4px solid #34495e; padding-left:8px; font-weight:bold; color:#34495e; font-size:15px; margin-bottom:15px; margin-top: 10px;">
+                회차별 풀이 이력 및 오답확인
+            </div>
+            <div id="history-ajax-area">이력을 조회하는 중입니다...</div>
         </div>
-        <div id="history-ajax-area">이력을 조회하는 중입니다...</div>
     `;
     
     fetchHistoryLogs();
+}
+
+async function searchQuestionByAnswer() {
+    const query = document.getElementById("search-answer-input").value.trim();
+    if (!query) {
+        alert("검색할 정답 키워드를 입력해 주세요.");
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/quiz/search?answer=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        renderSearchResults(data, query);
+    } catch(e) {
+        alert("검색 연동 중 에러가 발생했습니다.");
+    }
+}
+
+function handleSearchKeyPress(e) {
+    if (e.key === 'Enter') {
+        searchQuestionByAnswer();
+    }
+}
+
+function renderSearchResults(results, query) {
+    const dynamicArea = document.getElementById("dashboard-dynamic-area");
+    if (!dynamicArea) return;
+    
+    let html = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 15px; border-left: 4px solid #3498db; padding-left: 8px;">
+            <span style="font-weight: bold; color: #2c3e50; font-size: 15px;">'${query}' 검색 결과 (총 ${results.length}건)</span>
+            <span style="font-size: 12px; color: #3498db; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="loadMainDashboard()">이력 목록으로 돌아가기</span>
+        </div>
+    `;
+    
+    if (results.length === 0) {
+        html += `<div style="text-align: center; color: #95a5a6; font-size: 14px; padding: 40px 0;">해당 정답을 가진 기출문제를 찾을 수 없습니다.</div>`;
+    } else {
+        results.forEach((r, idx) => {
+            const isBookmarked = isQuestionBookmarked(r.text);
+            const starChar = isBookmarked ? "★" : "☆";
+            
+            html += `
+                <div class="log-box-card" style="border-top-color: #3498db;">
+                    <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
+                    <div class="source-tag">${r.source}</div>
+                    <div class="question-title" style="font-size: 14px; padding-right: 25px;">문제: ${r.text}</div>
+                    ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${r.view}</div>` : ''}
+                    <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
+                    <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4;">
+                        설명: ${r.desc}
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    window.searchCurrentResults = results;
+    dynamicArea.innerHTML = html;
+}
+
+function toggleBookmarkStatusFromSearch(index) {
+    if (window.searchCurrentResults && window.searchCurrentResults[index]) {
+        const q = window.searchCurrentResults[index];
+        toggleBookmarkStatus({
+            source: q.source,
+            text: q.text,
+            view: q.view,
+            answer: q.answer,
+            desc: q.desc
+        });
+        const query = document.getElementById("search-answer-input").value.trim();
+        renderSearchResults(window.searchCurrentResults, query);
+    }
 }
 
 function renderMyBookmarksTab() {
@@ -169,8 +264,13 @@ async function fetchHistoryLogs() {
 }
 
 async function triggerNewQuizSession() {
+    const selectedYear = document.getElementById("quiz-year-select").value;
     try {
-        const res = await fetch('/api/quiz/new', { method: 'POST' });
+        const res = await fetch('/api/quiz/new', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year: selectedYear })
+        });
         const data = await res.json();
         
         activeSessionId = data.sessionId;
@@ -226,8 +326,7 @@ function renderSingleQuestion() {
         
         ${inputHtml}
         
-        <div id="instant-reveal-area">
-            </div>
+        <div id="instant-reveal-area"></div>
 
         <div class="action-toggle-card" id="main-action-trigger-card" onclick="toggleInstantFeedbackReveal(${q.id})">
             정답 확인
