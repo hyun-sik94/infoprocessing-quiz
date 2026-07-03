@@ -104,7 +104,14 @@ let questionPool = [
     { id: 92, source: "2023년 2회 기출", text: "통합 테스트 모듈 설계 지문이다. 빈칸(①, ②)에 들어갈 알맞은 대행 컴포넌트 도구 명칭을 순서대로 쓰시오. (쉼표 구분)", view: "하향식 통합 테스트 기법은 메인 상위 모듈에서 아래 노드 방향으로 조립 구조화하며, 아직 미완성된 하위 종속 계층 컴포넌트들의 연산 가동 및 모의 리턴 처리를 대행해 주기 위해 더미 껍데기 모듈인 ( ① )을 호출하여 검증한다. 반면 상향식 통합 기법은 말단 모듈 클러스터로부터 위 노드로 결합 전개하며, 미완성 상위 뼈대 제어 인자들의 입출력 트래킹을 유도 대행하기 위해 ( ② ) 장치를 필수 빌드하여 수용한다.", answer: "스텁, 드라이버", desc: "하향식의 하부 대체 껍데기는 스텁(Stub)이고, 상향식의 상부 모의 호출 장치는 드라이버(Driver)입니다." },
     { id: 93, source: "2023년 3회 기출", text: "다음 설명에 부합하는 오픈 OpenAPI 기반 웹 인증 표준 규격 프로토콜을 보기에서 찾아 기술하시오.", view: "인터넷 애플리케이션에서 사용자 인증에 사용되는 표준 인증 방법으로, 공개 API(OpenAPI)로 구현되었다. 인터넷 사용자들이 웹사이트나 애플리케이션에 비밀번호를 제공하지 않고 자신에게 접근 권한을 부여하여 사용할 수 있다. 2010년 IETF에서 1.0이 공식 표준안으로 발표되었다.\n\n<보기>\nOpenID, IDEA, OAuth, SSPI, SASL, PEAP, OIDC, JAAS", answer: "OAuth", desc: "비밀번호 직접 노출 없이 토큰 기반으로 서드파티 앱에 권한 인가를 대행 제어해주는 오픈 표준은 OAuth입니다." },
     { id: 94, source: "2023년 3회 기출", text: "리눅스(Linux) 시스템 환경 권한 관리 제어 지문이다. 처리 조건을 완벽히 충족하기 위해 주입되어야 하는 명령어(①)와 8진법 권한 연산 수치(②)를 순서대로 작성하시오. (쉼표 구분)", view: "<처리 조건>\n- 목적지 파일인 a.txt 객체를 제어 대상으로 한다.\n- 소유자 소속 사용자에게는 읽기, 쓰기, 실행 권한을 전면 부여한다.\n- 동일 그룹 구성원에게는 읽기, 실행 권한만 부여한다.\n- 그 외 기타 사용자에게는 오직 실행 권한 한 가지만 할당 제어한다.\n- 명령 폼 양식 구조: ( ① ) ( ② ) a.txt", answer: "chmod, 751", desc: "권한 변경어는 chmod이며, rwx(4+2+1=7), rx(4+1=5), x(1) 규칙 조립 수치는 751입니다." },
-    { id: 95, source: "2023년 3회 기출", text: "UML 정적 구조 모델링 요소 지문이다. 빈칸에 들어갈 알맞은 구조적 다이어그램 명칭을 기재하시오.", view: "(  ) 다이어그램은 UML 정적 모델링의 하나로, 관련있는 객체나 클래스, 유스케이스들을 하나로 묶어 상위 개념으로 폴더처럼 추상화한 것이다. 대규모 소프트웨어 시스템 설계 국면에서 주요 거대소스 서브 컴포넌트 간의 결합도 및 종속성을 직관적으로 식별 조명하는 데 상용된다.", answer: "패키지", desc: "클래스나 다이어그램 개체들을 유기적 그룹 범주로 묶어 의존성을 나타내는 구조는 패키지 다이어그램입니다." },
+    {
+    id: 95,
+    source: "2023년 2회 기출",
+    text: "다음 보기는 암호화 알고리즘에 대한 내용이다. 대칭키 암호화 방식과 비대칭키 암호화 방식에 해당하는 것을 보기에서 골라 각각 알맞게 기입하시오.\n[보기] DES, RSA, AES, ECC, PKI, ARIA, SEED",
+    view: "1번 입력란: 대칭키 알고리즘 종류\n2번 입력란: 비대칭키 알고리즘 종류",
+    answer: "DES, AES, ARIA, SEED / RSA, ECC", // 슬래시 기호를 기점으로 정확히 2개의 입력창이 유도됩니다.
+    desc: "대칭키 방식에는 블록 암호화 방식인 DES, AES, SEED, ARIA 등이 있으며, 비대칭키(공개키) 방식에는 소인수분해 기반의 RSA와 이산대수 기반의 ECC 등이 있습니다.",
+    image: null},
     { id: 96, source: "2023년 3회 기출", text: "다음 보기의 명세 기반 품질 검증 기법 지문이 수식 설명하는 블랙박스 테스트 기법 명칭을 보기 항목과 철자가 정확히 일치하게 작성하시오.", view: "테스트 기법 중 미리 정해 놓은 유효 입력 영역 및 무효 영역의 경계 표를 기준으로, 각 동등 분할 구간을 대표할 수 있는 유효 대표 인자 값(예컨대 70~79점 구간 중 75점 대표값 인자)을 추출 설계하여 실제 실행 결과 표의 등급 산출 데이터와 오차 범위를 교차 비교하는 명세 기반 테스트 기법이다.\n\n<보기>\nEquivalence Partition, Boundary Value Analysis, Cause-Effect Graph, Error Guess, Base Path Test, Loop Test", answer: "Equivalence Partition", desc: "입력 데이터 영역을 균등 등가 유효 구간으로 쪼개어 대표값을 시험하는 기법은 동치 분할(Equivalence Partition) 검사입니다." },
     { id: 97, source: "2023년 3회 기출", text: "사설 IP와 공인 IP 간 가상 매핑 주소 변환 인프라 기술 명칭을 영문 약어 3글자로 명시하시오.", view: "우리말로 번역하면 '네트워크 주소 변환'이라는 의미의 영문 3글자 약자이다. 내부망 사설 사양 주소 체계 다수를 포트 포워딩 및 IP 마스커레이드 기술 등과 결합하여 한정된 1개의 외부 공인 IP 규격 대역으로 래핑하여 연동 제어하는 통신 기술 메커니즘이다.", answer: "NAT", desc: "인터넷 주소 고갈 완화 및 내부망 보안을 도모하는 네트워크 주소 변환 기술 규격은 NAT입니다." },
     { id: 98, source: "2023년 3회 기출", text: "다음 지문이 설명하는 53바이트 고정 셀 기반 광대역 통신 프로토콜 명칭 표준 약어를 기입하시오.", view: "자료를 일정한 크기로 정하여 순서대로 전송하는 자료의 전송방식으로, 셀이라 부르는 53Byte의 고정 길이 패킷을 이용하여 처리가 단순하고 고속망에 적합하다. 또한 연속적으로 셀을 보낼 때 다중화를 하지 않고 셀 단위로 동기가 이루어지며, CBR, VBR 실시간 멀티미디어 처리가 가능하여 B-ISDN 모델과 결합하여 서비스를 제공한다.", answer: "ATM", desc: "53바이트 고정 셀 패칭을 사용해 초고속 통신망 인터페이스를 지탱하던 비동기 전송 모드 기술 표준은 ATM입니다." },
@@ -126,30 +133,53 @@ function saveSessions(sessions) {
 
 // 동적 년도별 실시간 필터링 반영 라우터
 app.post('/api/quiz/new', (req, res) => {
-    const { year } = req.body; // 프론트엔드 select 박스 데이터 수신
+    // 프론트엔드가 로컬 스토리지에서 취합하여 보낸 solvedIds 배열을 수신합니다.
+    const { year, bookmarkIds, solvedIds } = req.body; 
     const sessions = loadSessions();
     const lastSession = sessions[sessions.length - 1];
     const excludedIds = lastSession ? lastSession.questionIds : [];
+    const clientSolvedIds = solvedIds || [];
     
-    // 1. 요청된 조건 문자열에 맞춰 가용 데이터 풀을 분기 조립합니다.
     let filteredPool = questionPool;
-    if (year && year !== 'all') {
+    
+    if (year === 'bookmark') {
+        const ids = bookmarkIds || [];
+        filteredPool = questionPool.filter(q => ids.includes(q.id));
+    } else if (year && year !== 'all') {
         filteredPool = questionPool.filter(q => q.source.includes(year + '년'));
     }
     
-    // 2. 직전 회차 문항 세션을 검사하여 배제시킵니다.
-    let availablePool = filteredPool.filter(q => !excludedIds.includes(q.id));
-    if (availablePool.length === 0) {
-        availablePool = [...filteredPool];
+    // 1단계 우선순위: 현재 지정된 조건 풀 중에서 풀지 않은 문제들만 필터링합니다.
+    let unsolvedPool = filteredPool.filter(q => !clientSolvedIds.includes(q.id));
+    
+    let availablePool = [];
+    
+    if (year === 'bookmark') {
+        availablePool = filteredPool;
+    } else {
+        // 아직 안 푼 문제가 풀에 남아있다면 해당 문제들을 우선적 출제 대상으로 확정합니다.
+        if (unsolvedPool.length > 0) {
+            availablePool = unsolvedPool;
+        } else {
+            // 2단계 사후 순환 단계: 해당 년도나 전체 문제를 최소 한 번씩 다 풀어서 안 푼 문제가 없는 경우입니다.
+            // 학습 유지를 위해 기존 정책대로 직전 회차 문제만 안전하게 제외하고 전체 풀을 다시 개방합니다.
+            availablePool = filteredPool.filter(q => !excludedIds.includes(q.id));
+            if (availablePool.length === 0) {
+                availablePool = [...filteredPool];
+            }
+        }
     }
     
-    // 무작위 랜덤 정렬 셔플
+    if (availablePool.length === 0) {
+        return res.status(400).json({ error: "출제할 수 있는 문제가 없습니다." });
+    }
+    
+    // 최종 선정된 풀을 무작위로 뒤섞습니다.
     for (let i = availablePool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [availablePool[i], availablePool[j]] = [availablePool[j], availablePool[i]];
     }
     
-    // 3. 단일 년도 선택 시 최대 풀이 30개 미만일 수 있으므로 동적 자르기 안전장치를 마련합니다.
     const limit = Math.min(30, availablePool.length);
     const selectedQuestions = availablePool.slice(0, limit);
     const questionIds = selectedQuestions.map(q => q.id);
@@ -167,15 +197,26 @@ app.post('/api/quiz/new', (req, res) => {
     sessions.push(newSession);
     saveSessions(sessions);
     
-    const secureClientQuestions = selectedQuestions.map(q => ({
-        id: q.id,
-        source: q.source,
-        text: q.text,
-        view: q.view,
-        answer: q.answer,
-        desc: q.desc,
-        inputCount: q.answer.includes(",") ? q.answer.split(",").length : 1
-    }));
+    const secureClientQuestions = selectedQuestions.map(q => {
+        // 입력란 개수 판별 기준을 쉼표에서 슬래시(/)로 변경합니다.
+        let inputCount = 1;
+        if (q.inputCount) {
+            inputCount = q.inputCount;
+        } else if (q.answer.includes("/")) {
+            inputCount = q.answer.split("/").length;
+        }
+        
+        return {
+            id: q.id,
+            source: q.source,
+            text: q.text,
+            view: q.view,
+            answer: q.answer,
+            desc: q.desc,
+            image: q.image || null,
+            inputCount: inputCount
+        };
+    });
     
     res.json({ sessionId: newSession.id, questions: secureClientQuestions });
 });

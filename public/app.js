@@ -6,9 +6,15 @@ let revealedAnswers = {};
 let globalTabState = "all";
 
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
+const HISTORY_KEY = "정처기_이력_목록";
 
 function getBookmarkedQuestions() {
     const data = localStorage.getItem(BOOKMARK_KEY);
+    return data ? JSON.parse(data) : [];
+}
+
+function getHistoryLogs() {
+    const data = localStorage.getItem(HISTORY_KEY);
     return data ? JSON.parse(data) : [];
 }
 
@@ -72,7 +78,7 @@ async function loadMainDashboard() {
             <div style="font-size:50px; margin-bottom:10px;">🎯</div>
             <h3 style="color:#2c3e50; margin-bottom:5px;">정처기 실기 기출 풀이</h3>
             <p style="font-size:13px; color:#7f8c8d; line-height:1.6; margin-bottom:20px; padding:0 15px;">
-                원하는 회차의 년도를 선택하거나 기억나는 정답으로 문제를 검색해 보세요.
+                원하는 회차의 년도를 선택하거나 기억나는 정답으로 문제를 검색해 보세요. 이력과 즐겨찾기는 브라우저에 안전하게 보존됩니다.
             </p>
             
             <div style="margin-bottom: 15px; padding: 0 30px;">
@@ -153,6 +159,7 @@ function renderSearchResults(results, query) {
                     <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
                     <div class="source-tag">${r.source}</div>
                     <div class="question-title" style="font-size: 14px; padding-right: 25px;">문제: ${r.text}</div>
+                    ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${r.view}</div>` : ''}
                     <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
                     <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4;">
@@ -171,11 +178,13 @@ function toggleBookmarkStatusFromSearch(index) {
     if (window.searchCurrentResults && window.searchCurrentResults[index]) {
         const q = window.searchCurrentResults[index];
         toggleBookmarkStatus({
+            id: q.id,
             source: q.source,
             text: q.text,
             view: q.view,
             answer: q.answer,
-            desc: q.desc
+            desc: q.desc,
+            image: q.image || null
         });
         const query = document.getElementById("search-answer-input").value.trim();
         renderSearchResults(window.searchCurrentResults, query);
@@ -198,16 +207,31 @@ function renderMyBookmarksTab() {
         return;
     }
     
-    let html = `<p style="font-size:13px; color:#7f8c8d; margin-bottom:15px;">보관된 항목 총 ${bookmarks.length}개</p>`;
+    const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
+    let startButtonHtml = "";
+    if (bookmarkIds.length > 0) {
+        startButtonHtml = `
+            <button class="nav-control-btn" style="width:100%; background-color:#2ecc71; margin-bottom: 20px;" onclick="startBookmarkQuiz()">
+                즐겨찾기 문제 풀기 (${bookmarkIds.length}문항)
+            </button>
+        `;
+    }
+    
+    let html = `
+        ${startButtonHtml}
+        <p style="font-size:13px; color:#7f8c8d; margin-bottom:15px;">보관된 항목 총 ${bookmarks.length}개</p>
+    `;
+    
     bookmarks.forEach((b, idx) => {
         html += `
             <div class="log-box-card" style="border-top-color: #f1c40f;">
                 <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab('${b.text}')">★</span>
                 <div class="source-tag">${b.source}</div>
                 <div class="question-title" style="font-size:14px; padding-right:25px;">${b.text}</div>
+                ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${b.view}</div>` : ''}
                 <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${b.answer}</div>
-                <div style="margin-top:6px; font-size:12px; color:#555; background:#f1f2f6; padding:8px; border-radius:4px; line-height:1.4;">
+                <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4;">
                     설명: ${b.desc}
                 </div>
             </div>
@@ -221,55 +245,81 @@ function removeBookmarkFromTab(text) {
     toggleBookmarkStatus({ text: text });
 }
 
-async function fetchHistoryLogs() {
-    const area = document.getElementById("history-ajax-area");
-    try {
-        const res = await fetch('/api/history');
-        const data = await res.json();
-        
-        if (data.length === 0) {
-            area.innerHTML = "<p style='color:#999; font-size:13px;'>저장된 기출 완료 기록이 없습니다.</p>";
-            return;
-        }
-        
-        let html = "";
-        data.reverse().forEach(s => {
-            html += `
-                <div class="log-box-card">
-                    <div style="font-size:12px; color:#95a5a6;">풀이 시점: ${s.date}</div>
-                    <div style="font-size:15px; font-weight:bold; margin:6px 0; color:#2c3e50;">최종 점수: ${s.score} / ${s.total} 문항</div>
-                    <div style="font-size:13px; color:#e74c3c; font-weight:bold; margin-bottom:10px;">틀린 문제 수: ${s.wrongCount}개</div>
-                    <button class="nav-control-btn" style="padding:6px; font-size:12px; background-color:#34495e;" onclick="toggleHistoryWrongList(${s.id})">
-                        틀린문제 다시 확인하기
-                    </button>
-                    <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
-                        ${s.wrongs.map(w => `
-                            <div class="history-wrong-item">
-                                <div style="font-weight:bold; color:#2980b9; margin-bottom:3px;">${w.source}</div>
-                                <div style="font-weight:bold; color:#333; margin-bottom:4px;">문제: ${w.text}</div>
-                                ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px;">${w.view}</div>` : ''}
-                                <div style="color:#c0392b;">제출된 오답: ${w.userAnswer}</div>
-                                <div style="color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer}</div>
-                                <div style="margin-top:4px; font-size:12px; color:#666; background:#fff; padding:6px; border:1px solid #ddd;">해설: ${w.desc}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        });
-        area.innerHTML = html;
-    } catch(e) {
-        area.innerHTML = "이력 바인딩 실패";
+function startBookmarkQuiz() {
+    const bookmarks = getBookmarkedQuestions();
+    const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
+    if (bookmarkIds.length === 0) {
+        alert("새로운 즐겨찾기를 등록한 뒤 가동해 주십시오.");
+        return;
     }
+    triggerNewQuizSession('bookmark', bookmarkIds);
 }
 
-async function triggerNewQuizSession() {
-    const selectedYear = document.getElementById("quiz-year-select").value;
+function fetchHistoryLogs() {
+    const area = document.getElementById("history-ajax-area");
+    const data = getHistoryLogs();
+    
+    if (data.length === 0) {
+        area.innerHTML = "<p style='color:#999; font-size:13px;'>저장된 기출 완료 기록이 없습니다.</p>";
+        return;
+    }
+    
+    let html = "";
+    [...data].reverse().forEach(s => {
+        html += `
+            <div class="log-box-card">
+                <div style="font-size:12px; color:#95a5a6;">풀이 시점: ${s.date}</div>
+                <div style="font-size:15px; font-weight:bold; margin:6px 0; color:#2c3e50;">최종 점수: ${s.score} / ${s.total} 문항</div>
+                <div style="font-size:13px; color:#e74c3c; font-weight:bold; margin-bottom:10px;">틀린 문제 수: ${s.wrongCount}개</div>
+                <button class="nav-control-btn" style="padding:6px; font-size:12px; background-color:#34495e;" onclick="toggleHistoryWrongList(${s.id})">
+                    틀린문제 다시 확인하기
+                </button>
+                <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
+                    ${s.wrongs.map(w => `
+                        <div class="history-wrong-item">
+                            <div style="font-weight:bold; color:#2980b9; margin-bottom:3px;">${w.source}</div>
+                            <div style="font-weight:bold; color:#333; margin-bottom:4px;">문제: ${w.text}</div>
+                            ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                            ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px;">${w.view}</div>` : ''}
+                            <div style="color:#c0392b;">제출된 오답: ${w.userAnswer}</div>
+                            <div style="color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer}</div>
+                            <div style="margin-top:4px; font-size:12px; color:#666; background:#fff; padding:6px; border:1px solid #ddd;">해설: ${w.desc}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    area.innerHTML = html;
+}
+
+async function triggerNewQuizSession(customYear, customIds) {
+    let selectedYear = customYear;
+    let bookmarkIds = customIds || [];
+    
+    if (!selectedYear) {
+        const selectElem = document.getElementById("quiz-year-select");
+        selectedYear = selectElem ? selectElem.value : "all";
+    }
+    
+    const historyLogs = getHistoryLogs();
+    let allSolvedIds = [];
+    historyLogs.forEach(log => {
+        if (log.solvedIds) {
+            allSolvedIds = allSolvedIds.concat(log.solvedIds);
+        }
+    });
+    allSolvedIds = [...new Set(allSolvedIds)];
+    
     try {
         const res = await fetch('/api/quiz/new', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ year: selectedYear })
+            body: JSON.stringify({ 
+                year: selectedYear, 
+                bookmarkIds: bookmarkIds,
+                solvedIds: allSolvedIds
+            })
         });
         const data = await res.json();
         
@@ -297,7 +347,7 @@ function renderSingleQuestion() {
     if (q.inputCount > 1) {
         for (let i = 0; i < q.inputCount; i++) {
             const cachedValue = savedUserAnswers[q.id] || "";
-            const cachedAnswers = cachedValue.split(",").map(s => s.trim());
+            const cachedAnswers = cachedValue.split("/").map(s => s.trim());
             const currentVal = cachedAnswers[i] || "";
             inputHtml += `
                 <div style="margin-bottom: 10px;">
@@ -322,6 +372,8 @@ function renderSingleQuestion() {
         </div>
         <div class="source-tag">${q.source}</div>
         <div class="question-title">${q.text}</div>
+        
+        ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
         ${q.view ? `<div class="box-view">${q.view}</div>` : ''}
         
         ${inputHtml}
@@ -363,11 +415,13 @@ function focusInitialField(q) {
 function handleBookmarkClick() {
     const q = sessionQuizData[currentQuizIndex];
     toggleBookmarkStatus({
+        id: q.id,
         source: q.source,
         text: q.text,
         view: q.view,
         answer: q.answer,
-        desc: q.desc
+        desc: q.desc,
+        image: q.image || null
     });
 }
 
@@ -425,7 +479,7 @@ function synchronizeMultiAnswer(qId, count) {
         const inputElement = document.querySelector(`.multi-input-${qId}[data-index="${i}"]`);
         answers.push(inputElement ? inputElement.value.trim() : "");
     }
-    savedUserAnswers[qId] = answers.join(", ");
+    savedUserAnswers[qId] = answers.join(" / ");
 }
 
 function handleInputNavigation(e, index, total) {
@@ -461,7 +515,38 @@ async function submitQuizAnswers() {
         body: JSON.stringify({ sessionId: activeSessionId, userAnswers: savedUserAnswers })
     });
     const result = await res.json();
+    
+    saveHistoryToLocal(result);
+    
     renderReviewResult(result);
+}
+
+function saveHistoryToLocal(result) {
+    const history = getHistoryLogs();
+    const wrongs = result.reviewData.filter(r => !r.isRight).map(w => ({
+        source: w.source,
+        text: w.text,
+        view: w.view,
+        userAnswer: w.userAnswer,
+        realAnswer: w.realAnswer,
+        desc: w.desc,
+        image: w.image || null
+    }));
+    
+    const currentSolvedIds = result.reviewData.map(r => r.id);
+
+    const newLog = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ko-KR'),
+        score: result.score,
+        total: result.total,
+        wrongCount: wrongs.length,
+        wrongs: wrongs,
+        solvedIds: currentSolvedIds
+    };
+    
+    history.push(newLog);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
 function renderReviewResult(result) {
@@ -483,6 +568,7 @@ function renderReviewResult(result) {
             <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : '#e74c3c'}">
                 <div class="source-tag">${idx + 1}번 항목 | 출처: ${r.source} [${r.isRight ? 'PASS' : 'FAIL'}]</div>
                 <div class="question-title" style="font-size:14px; margin-bottom:8px;">문제: ${r.text}</div>
+                ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${r.view}</div>` : ''}
                 <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${r.userAnswer || "미입력"}</span></div>
                 <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${r.realAnswer}</div>
