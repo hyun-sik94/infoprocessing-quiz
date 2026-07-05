@@ -343,16 +343,20 @@ function renderSingleQuestion() {
     const isBookmarked = isQuestionBookmarked(q.text);
     const starChar = isBookmarked ? "★" : "☆";
     
+    // 이 문항 정답 데이터의 그룹 분리 여부를 자동 실시간 파악합니다.
+    let delimiter = q.answer.includes(" / ") ? " / " : ",";
+    
     let inputHtml = '<div class="input-block-wrapper">';
     if (q.inputCount > 1) {
+        const cachedValue = savedUserAnswers[q.id] || "";
+        const cachedAnswers = cachedValue.split(delimiter).map(s => s.trim());
+        
         for (let i = 0; i < q.inputCount; i++) {
-            const cachedValue = savedUserAnswers[q.id] || "";
-            const cachedAnswers = cachedValue.split("/").map(s => s.trim());
             const currentVal = cachedAnswers[i] || "";
             inputHtml += `
                 <div style="margin-bottom: 10px;">
                     <span class="input-label-text">${i + 1}번 입력란</span>
-                    <input type="text" class="input-answer multi-input-${q.id}" data-index="${i}" placeholder="${i + 1}번 정답 입력" value="${currentVal}" oninput="synchronizeMultiAnswer(${q.id}, ${q.inputCount})" onkeypress="handleInputNavigation(event, ${i}, ${q.inputCount})">
+                    <input type="text" class="input-answer multi-input-${q.id}" data-index="${i}" placeholder="${i + 1}번 정답 입력" value="${currentVal}" oninput="synchronizeMultiAnswer(${q.id}, ${q.inputCount}, '${delimiter}')" onkeypress="handleInputNavigation(event, ${i}, ${q.inputCount})">
                 </div>
             `;
         }
@@ -473,13 +477,15 @@ function synchronizeSingleAnswer(qId, val) {
     savedUserAnswers[qId] = val;
 }
 
-function synchronizeMultiAnswer(qId, count) {
+function synchronizeMultiAnswer(qId, count, delimiter) {
     const answers = [];
     for (let i = 0; i < count; i++) {
         const inputElement = document.querySelector(`.multi-input-${qId}[data-index="${i}"]`);
         answers.push(inputElement ? inputElement.value.trim() : "");
     }
-    savedUserAnswers[qId] = answers.join(" / ");
+    // 주입된 딜리미터 속성에 따라 콤마 방식과 슬래시 방식을 동적 스위칭 결합합니다.
+    const joinStr = delimiter === " / " ? " / " : ", ";
+    savedUserAnswers[qId] = answers.join(joinStr);
 }
 
 function handleInputNavigation(e, index, total) {
