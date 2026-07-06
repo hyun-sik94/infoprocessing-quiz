@@ -73,7 +73,6 @@ async function loadMainDashboard() {
     document.getElementById("header-center-title").innerText = "기출 메인 허브";
     const container = document.getElementById("view-renderer");
     
-    // quiz-year-select 요소 내부에 2024년도 기출 이론 선택 옵션을 새롭게 추가했습니다.
     container.innerHTML = `
         <div style="text-align:center; padding-top:20px;">
             <div style="font-size:50px; margin-bottom:10px;">🎯</div>
@@ -89,6 +88,7 @@ async function loadMainDashboard() {
                     <option value="2022">2022년도 기출 이론 선택</option>
                     <option value="2023">2023년도 기출 이론 선택</option>
                     <option value="2024">2024년도 기출 이론 선택</option>
+                    <option value="2025">2025년도 기출 이론 선택</option>
                 </select>
             </div>
 
@@ -160,11 +160,11 @@ function renderSearchResults(results, query) {
                 <div class="log-box-card" style="border-top-color: #3498db;">
                     <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
                     <div class="source-tag">${r.source}</div>
-                    <div class="question-title" style="font-size: 14px; padding-right: 25px;">문제: ${r.text}</div>
+                    <div class="question-title" style="font-size: 14px; padding-right: 25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">문제: ${r.text}</div>
                     ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-                    ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${r.view}</div>` : ''}
+                    ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${r.view}</div>` : ''}
                     <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
-                    <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4;">
+                    <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4; white-space: pre-wrap;">
                         설명: ${r.desc}
                     </div>
                 </div>
@@ -229,11 +229,11 @@ function renderMyBookmarksTab() {
             <div class="log-box-card" style="border-top-color: #f1c40f;">
                 <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab('${b.text}')">★</span>
                 <div class="source-tag">${b.source}</div>
-                <div class="question-title" style="font-size:14px; padding-right:25px;">${b.text}</div>
+                <div class="question-title" style="font-size:14px; padding-right:25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">${b.text}</div>
                 ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-                ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${b.view}</div>` : ''}
+                ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${b.view}</div>` : ''}
                 <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${b.answer}</div>
-                <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4;">
+                <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4; white-space: pre-wrap;">
                     설명: ${b.desc}
                 </div>
             </div>
@@ -280,12 +280,12 @@ function fetchHistoryLogs() {
                     ${s.wrongs.map(w => `
                         <div class="history-wrong-item">
                             <div style="font-weight:bold; color:#2980b9; margin-bottom:3px;">${w.source}</div>
-                            <div style="font-weight:bold; color:#333; margin-bottom:4px;">문제: ${w.text}</div>
+                            <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${w.text}</div>
                             ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-                            ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px;">${w.view}</div>` : ''}
+                            ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
                             <div style="color:#c0392b;">제출된 오답: ${w.userAnswer}</div>
                             <div style="color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer}</div>
-                            <div style="margin-top:4px; font-size:12px; color:#666; background:#fff; padding:6px; border:1px solid #ddd;">해설: ${w.desc}</div>
+                            <div style="margin-top:4px; font-size:12px; color:#666; background:#fff; padding:6px; border:1px solid #ddd; white-space: pre-wrap; line-height: 1.4;">해설: ${w.desc}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -293,6 +293,11 @@ function fetchHistoryLogs() {
         `;
     });
     area.innerHTML = html;
+}
+
+function toggleHistoryWrongList(id) {
+    const area = document.getElementById("wrong-container-" + id);
+    area.style.display = area.style.display === "none" ? "block" : "none";
 }
 
 async function triggerNewQuizSession(customYear, customIds) {
@@ -376,10 +381,10 @@ function renderSingleQuestion() {
             <span class="bookmark-toggle-btn" id="bookmark-icon" onclick="handleBookmarkClick()">${starChar}</span>
         </div>
         <div class="source-tag">${q.source}</div>
-        <div class="question-title">${q.text}</div>
+        <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${q.text}</div>
         
         ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-        ${q.view ? `<div class="box-view">${q.view}</div>` : ''}
+        ${q.view ? `<div class="box-view" style="white-space: pre-wrap; line-height: 1.5; font-size: 13px;">${q.view}</div>` : ''}
         
         ${inputHtml}
         
@@ -448,7 +453,7 @@ function showAnswerBoxInline(q) {
     panelArea.innerHTML = `
         <div class="instant-feedback-panel">
             <div style="font-weight:bold; color:#15803d; margin-bottom:5px;">출제 정답: ${q.answer}</div>
-            <div style="font-size:14px; color:#166534; border-top:1px solid #bbf7d0; padding-top:6px; margin-top:5px;">
+            <div style="font-size:14px; color:#166534; border-top:1px solid #bbf7d0; padding-top:6px; margin-top:5px; white-space: pre-wrap; line-height: 1.5;">
                 설명 주석: ${q.desc}
             </div>
         </div>
@@ -573,12 +578,12 @@ function renderReviewResult(result) {
         html += `
             <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : '#e74c3c'}">
                 <div class="source-tag">${idx + 1}번 항목 | 출처: ${r.source} [${r.isRight ? 'PASS' : 'FAIL'}]</div>
-                <div class="question-title" style="font-size:14px; margin-bottom:8px;">문제: ${r.text}</div>
+                <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${r.text}</div>
                 ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-                ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px;">${r.view}</div>` : ''}
+                ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.4;">${r.view}</div>` : ''}
                 <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${r.userAnswer || "미입력"}</span></div>
                 <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${r.realAnswer}</div>
-                <div style="margin-top:6px; font-size:12px; color:#555; background:#f1f2f6; padding:8px; border-radius:4px; line-height:1.4;">
+                <div style="margin-top:6px; font-size:12px; color:#555; background:#f1f2f6; padding:8px; border-radius:4px; line-height:1.4; white-space: pre-wrap;">
                     설명: ${r.desc}
                 </div>
             </div>
@@ -587,11 +592,6 @@ function renderReviewResult(result) {
     
     view.innerHTML = html;
     view.scrollTop = 0;
-}
-
-function toggleHistoryWrongList(id) {
-    const area = document.getElementById("wrong-container-" + id);
-    area.style.display = area.style.display === "none" ? "block" : "none";
 }
 
 function exitToDashboard() {
