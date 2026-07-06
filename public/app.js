@@ -73,6 +73,7 @@ async function loadMainDashboard() {
     document.getElementById("header-center-title").innerText = "기출 메인 허브";
     const container = document.getElementById("view-renderer");
     
+    // quiz-year-select 요소 내부에 2024년도 기출 이론 선택 옵션을 새롭게 추가했습니다.
     container.innerHTML = `
         <div style="text-align:center; padding-top:20px;">
             <div style="font-size:50px; margin-bottom:10px;">🎯</div>
@@ -87,6 +88,7 @@ async function loadMainDashboard() {
                     <option value="2021">2021년도 기출 이론 선택</option>
                     <option value="2022">2022년도 기출 이론 선택</option>
                     <option value="2023">2023년도 기출 이론 선택</option>
+                    <option value="2024">2024년도 기출 이론 선택</option>
                 </select>
             </div>
 
@@ -343,7 +345,6 @@ function renderSingleQuestion() {
     const isBookmarked = isQuestionBookmarked(q.text);
     const starChar = isBookmarked ? "★" : "☆";
     
-    // 이 문항 정답 데이터의 그룹 분리 여부를 자동 실시간 파악합니다.
     let delimiter = q.answer.includes(" / ") ? " / " : ",";
     
     let inputHtml = '<div class="input-block-wrapper">';
@@ -483,7 +484,6 @@ function synchronizeMultiAnswer(qId, count, delimiter) {
         const inputElement = document.querySelector(`.multi-input-${qId}[data-index="${i}"]`);
         answers.push(inputElement ? inputElement.value.trim() : "");
     }
-    // 주입된 딜리미터 속성에 따라 콤마 방식과 슬래시 방식을 동적 스위칭 결합합니다.
     const joinStr = delimiter === " / " ? " / " : ", ";
     savedUserAnswers[qId] = answers.join(joinStr);
 }
