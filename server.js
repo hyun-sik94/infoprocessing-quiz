@@ -178,13 +178,14 @@ image: null,
 inputCount: 3
 },
 {
-id: 110,
-source: "2024년 1회 기출",
-text: "다음 테이블 R1과 R2를 참조하여 지정된 SQL문을 실행했을 때 출력되는 결과를 쓰시오.\n[R1 테이블 (A, B, C)] -> (1, a, X), (b, b, y), (3, c, t)\n[R2 테이블 (C, D, E)] -> (X, k, k), (y, k, t), (Z, P, k)\n[SQL문]\nSELECT B FROM R1 WHERE C IN (SELECT C FROM R2 WHERE D='k');",
-view: "출력되는 데이터 값을 콤마 기호로 나열하여 기입해 주십시오.",
-answer: "a, b",
-desc: "하위 질의 결과 D가 k인 R2의 C 값은 X와 y입니다. R1에서 C가 X 또는 y인 행의 B 속성을 조회하므로 정답은 a와 b가 됩니다.",
-image: null
+    id: 110,
+    source: "2024년 1회 기출",
+    text: "다음 <R1>과 <R2> 테이블을 참조하여 <SQL문>을 실행했을 때 출력되는 결과를 쓰시오. (단, 문제 유의사항에 따라 SQL을 실행하였을 때 화면에 표시되는 출력 속성명과 결과 데이터 값들을 각각의 입력란에 순서대로 알맞게 기입하시오.)\n\n[R1 테이블]\nA  |  B  |  C\n-------------\n1  |  a  |  X\n2  |  b  |  y\n3  |  c  |  t\n\n[R2 테이블]\nC  |  D  |  E\n-------------\nX  |  k  |  k\ny  |  k  |  t\nZ  |  P  |  k\n\n[SQL문]\nSELECT B\nFROM R1\nWHERE C IN (SELECT C FROM R2 WHERE D='k');",
+    view: "1번 입력란: 출력 상단 속성명\n2번 입력란: 첫 번째 행 결과 값\n3번 입력란: 두 번째 행 결과 값",
+    answer: "B, a, b",
+    desc: "하위 질의(SELECT C FROM R2 WHERE D='k')의 결과로 D 속성의 값이 'k'인 R2 테이블의 C 값은 X와 y가 추출됩니다. 메인 질의에서는 R1 테이블을 대상으로 C 속성의 값이 X 또는 y인 행을 필터링하여 B 속성을 최종 조회하므로, 화면 출력 결과창에는 속성명 B가 먼저 표시된 후 그 아래에 데이터 값 a와 b가 순차적으로 출력됩니다.",
+    image: null,
+    inputCount: 3
 },
 {
 id: 111,
