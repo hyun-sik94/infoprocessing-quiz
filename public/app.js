@@ -164,9 +164,7 @@ function renderSearchResults(results, query) {
                     ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${r.view}</div>` : ''}
                     <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
-                    <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4; white-space: pre-wrap;">
-                        설명: ${r.desc}
-                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${r.desc}</div>
                 </div>
             `;
         });
@@ -233,9 +231,7 @@ function renderMyBookmarksTab() {
                 ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${b.view}</div>` : ''}
                 <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${b.answer}</div>
-                <div style="margin-top: 6px; font-size: 12px; color: #555; background: #f1f2f6; padding: 8px; border-radius: 4px; line-height: 1.4; white-space: pre-wrap;">
-                    설명: ${b.desc}
-                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${b.desc}</div>
             </div>
         `;
     });
@@ -285,7 +281,7 @@ function fetchHistoryLogs() {
                             ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
                             <div style="color:#c0392b;">제출된 오답: ${w.userAnswer}</div>
                             <div style="color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer}</div>
-                            <div style="margin-top:4px; font-size:12px; color:#666; background:#fff; padding:6px; border:1px solid #ddd; white-space: pre-wrap; line-height: 1.4;">해설: ${w.desc}</div>
+                            <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${w.desc}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -384,7 +380,7 @@ function renderSingleQuestion() {
         <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${q.text}</div>
         
         ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-        ${q.view ? `<div class="box-view" style="white-space: pre-wrap; line-height: 1.5; font-size: 13px;">${q.view}</div>` : ''}
+        ${q.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${q.view}</div>` : ''}
         
         ${inputHtml}
         
@@ -453,9 +449,7 @@ function showAnswerBoxInline(q) {
     panelArea.innerHTML = `
         <div class="instant-feedback-panel">
             <div style="font-weight:bold; color:#15803d; margin-bottom:5px;">출제 정답: ${q.answer}</div>
-            <div style="font-size:14px; color:#166534; border-top:1px solid #bbf7d0; padding-top:6px; margin-top:5px; white-space: pre-wrap; line-height: 1.5;">
-                설명 주석: ${q.desc}
-            </div>
+            <div style="font-size:14px; color:#166534; border-top:1px solid #bbf7d0; padding-top:6px; margin-top:5px; white-space: pre-wrap; line-height: 1.5;">${q.desc}</div>
         </div>
     `;
     
@@ -583,9 +577,7 @@ function renderReviewResult(result) {
                 ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.4;">${r.view}</div>` : ''}
                 <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${r.userAnswer || "미입력"}</span></div>
                 <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${r.realAnswer}</div>
-                <div style="margin-top:6px; font-size:12px; color:#555; background:#f1f2f6; padding:8px; border-radius:4px; line-height:1.4; white-space: pre-wrap;">
-                    설명: ${r.desc}
-                </div>
+                <div style="margin-top:8px; font-size:12px; color:#555; background:#f8f9fa; padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${r.desc}</div>
             </div>
         `;
     });
