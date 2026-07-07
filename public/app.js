@@ -5,6 +5,9 @@ let activeSessionId = null;
 let revealedAnswers = {};
 let globalTabState = "all";
 
+// 활성화된 입력 상자를 실시간 트래킹하는 변수입니다.
+let activeInputRef = null;
+
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
 const HISTORY_KEY = "정처기_이력_목록";
 
@@ -70,6 +73,7 @@ function switchMainTab(tabType) {
 
 async function loadMainDashboard() {
     activeSessionId = null;
+    activeInputRef = null;
     document.getElementById("header-center-title").innerText = "기출 메인 허브";
     const container = document.getElementById("view-renderer");
     
@@ -262,33 +266,78 @@ function fetchHistoryLogs() {
         return;
     }
     
+    window.historyLogQuestions = window.historyLogQuestions || {};
     let html = "";
     [...data].reverse().forEach(s => {
+        // 기존 데이터(wrongs만 존재)와 신규 데이터(전체 문항 보관)의 호환성 예외 처리를 진행합니다.
+        const targetQuestions = s.questions || s.wrongs || [];
+        window.historyLogQuestions[s.id] = targetQuestions;
+
         html += `
             <div class="log-box-card">
                 <div style="font-size:12px; color:#95a5a6;">풀이 시점: ${s.date}</div>
                 <div style="font-size:15px; font-weight:bold; margin:6px 0; color:#2c3e50;">최종 점수: ${s.score} / ${s.total} 문항</div>
                 <div style="font-size:13px; color:#e74c3c; font-weight:bold; margin-bottom:10px;">틀린 문제 수: ${s.wrongCount}개</div>
                 <button class="nav-control-btn" style="padding:6px; font-size:12px; background-color:#34495e;" onclick="toggleHistoryWrongList(${s.id})">
-                    틀린문제 다시 확인하기
+                    전체 문항 다시 확인하기
                 </button>
                 <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
-                    ${s.wrongs.map(w => `
-                        <div class="history-wrong-item">
-                            <div style="font-weight:bold; color:#2980b9; margin-bottom:3px;">${w.source}</div>
-                            <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${w.text}</div>
-                            ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-                            ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
-                            <div style="color:#c0392b;">제출된 오답: ${w.userAnswer}</div>
-                            <div style="color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer}</div>
-                            <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${w.desc}</div>
-                        </div>
-                    `).join('')}
+                    ${targetQuestions.map((w, idx) => {
+                        const isRight = w.isRight !== undefined ? w.isRight : false;
+                        const isBookmarked = isQuestionBookmarked(w.text);
+                        const starChar = isBookmarked ? "★" : "☆";
+                        return `
+                            <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#2ecc71' : '#e74c3c'}; padding-left: 10px; margin-bottom: 12px; position: relative;">
+                                <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
+                                <div style="font-weight:bold; color:${isRight ? '#2ecc71' : '#c0392b'}; margin-bottom:3px;">${w.source} [${isRight ? '정답' : '오답'}]</div>
+                                <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${w.text}</div>
+                                ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                                ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
+                                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#27ae60':'#c0392b'}">${w.userAnswer || "미입력"}</span></div>
+                                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer || w.answer}</div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${w.desc}</div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
     });
     area.innerHTML = html;
+}
+
+function toggleBookmarkFromHistory(sessionId, idx, element) {
+    if (window.historyLogQuestions && window.historyLogQuestions[sessionId] && window.historyLogQuestions[sessionId][idx]) {
+        const q = window.historyLogQuestions[sessionId][idx];
+        toggleBookmarkStatus({
+            id: q.id,
+            source: q.source,
+            text: q.text,
+            view: q.view,
+            answer: q.realAnswer || q.answer,
+            desc: q.desc,
+            image: q.image || null
+        });
+        const isBookmarked = isQuestionBookmarked(q.text);
+        element.innerText = isBookmarked ? "★" : "☆";
+    }
+}
+
+function toggleBookmarkFromReview(idx, element) {
+    if (window.currentReviewQuestions && window.currentReviewQuestions[idx]) {
+        const q = window.currentReviewQuestions[idx];
+        toggleBookmarkStatus({
+            id: q.id,
+            source: q.source,
+            text: q.text,
+            view: q.view,
+            answer: q.realAnswer || q.answer,
+            desc: q.desc,
+            image: q.image || null
+        });
+        const isBookmarked = isQuestionBookmarked(q.text);
+        element.innerText = isBookmarked ? "★" : "☆";
+    }
 }
 
 function toggleHistoryWrongList(id) {
@@ -331,10 +380,80 @@ async function triggerNewQuizSession(customYear, customIds) {
         currentQuizIndex = 0;
         savedUserAnswers = {};
         revealedAnswers = {};
+        activeInputRef = null;
         
         renderSingleQuestion();
     } catch(e) {
         alert("서버 연결에 실패했습니다.");
+    }
+}
+
+function extractChoices(q) {
+    let fullText = (q.text || "") + "\n" + (q.view || "");
+    let match = fullText.match(/[\[<]보기[\]>]([\s\S]*)$/);
+    if (!match) return "";
+    
+    let choicesText = match[1].trim();
+    let items = [];
+    
+    if (choicesText.includes("/")) {
+        items = choicesText.split("/");
+    } else if (choicesText.includes(",")) {
+        items = choicesText.split(",");
+    } else {
+        items = choicesText.split(/\s+/).filter(i => i.trim().length > 0);
+    }
+    
+    items = items.map(i => i.trim()).filter(i => i.length > 0 && !i.startsWith("생성 패턴:") && !i.startsWith("구조 패턴:") && !i.startsWith("행위 패턴:"));
+    if (items.length === 0) return "";
+    
+    let html = '<div class="choices-container" style="margin-top: 15px; padding: 12px; background: #f1f2f6; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px; border: 1px solid #e2e8f0;">';
+    html += '<div style="width: 100%; font-size: 12px; color: #7f8c8d; font-weight: bold; margin-bottom: 4px;">💡 보기를 터치하면 활성화된 칸에 자동 입력됩니다</div>';
+    
+    items.forEach(item => {
+        let cleanVal = item;
+        let m = item.match(/^([ㄱ-ㅎ가-힣a-zA-Z0-9])\.\s*(.*)$/);
+        if (m && q.answer.includes(m[1])) {
+            cleanVal = m[1];
+        }
+        
+        html += `
+            <button type="button" class="choice-badge" style="padding: 8px 14px; background: #ffffff; border: 1px solid #dcdde1; border-radius: 20px; font-size: 13px; color: #2c3e50; cursor: pointer; transition: all 0.2s; outline: none; font-weight: 500;" 
+                onclick="handleChoiceClick('${cleanVal.replace(/'/g, "\\'")}')" 
+                onmouseover="this.style.background='#e8f0fe'; this.style.borderColor='#3498db'; this.style.color='#2980b9';" 
+                onmouseout="this.style.background='#ffffff'; this.style.borderColor='#dcdde1'; this.style.color='#2c3e50';">
+                ${item}
+            </button>
+        `;
+    });
+    html += '</div>';
+    return html;
+}
+
+function handleChoiceClick(val) {
+    let q = sessionQuizData[currentQuizIndex];
+    
+    if (!activeInputRef || !document.body.contains(activeInputRef)) {
+        if (q.inputCount > 1) {
+            for (let i = 0; i < q.inputCount; i++) {
+                let input = document.querySelector(`.multi-input-${q.id}[data-index="${i}"]`);
+                if (input && !input.value.trim()) {
+                    activeInputRef = input;
+                    break;
+                }
+            }
+            if (!activeInputRef) {
+                activeInputRef = document.querySelector(`.multi-input-${q.id}[data-index="0"]`);
+            }
+        } else {
+            activeInputRef = document.getElementById("active-single-input");
+        }
+    }
+    
+    if (activeInputRef) {
+        activeInputRef.value = val;
+        activeInputRef.dispatchEvent(new Event('input', { bubbles: true }));
+        activeInputRef.focus();
     }
 }
 
@@ -358,7 +477,7 @@ function renderSingleQuestion() {
             inputHtml += `
                 <div style="margin-bottom: 10px;">
                     <span class="input-label-text">${i + 1}번 입력란</span>
-                    <input type="text" class="input-answer multi-input-${q.id}" data-index="${i}" placeholder="${i + 1}번 정답 입력" value="${currentVal}" oninput="synchronizeMultiAnswer(${q.id}, ${q.inputCount}, '${delimiter}')" onkeypress="handleInputNavigation(event, ${i}, ${q.inputCount})">
+                    <input type="text" class="input-answer multi-input-${q.id}" data-index="${i}" placeholder="${i + 1}번 정답 입력" value="${currentVal}" onfocus="activeInputRef = this" oninput="synchronizeMultiAnswer(${q.id}, ${q.inputCount}, '${delimiter}')" onkeypress="handleInputNavigation(event, ${i}, ${q.inputCount})">
                 </div>
             `;
         }
@@ -366,10 +485,12 @@ function renderSingleQuestion() {
         const cachedValue = savedUserAnswers[q.id] || "";
         inputHtml += `
             <span class="input-label-text">정답 입력란</span>
-            <input type="text" id="active-single-input" class="input-answer" placeholder="여기에 주관식 정답을 기입하세요" value="${cachedValue}" oninput="synchronizeSingleAnswer(${q.id}, this.value)" onkeypress="handleSingleKeyPress(event)">
+            <input type="text" id="active-single-input" class="input-answer" placeholder="여기에 주관식 정답을 기입하세요" value="${cachedValue}" onfocus="activeInputRef = this" oninput="synchronizeSingleAnswer(${q.id}, this.value)" onkeypress="handleSingleKeyPress(event)">
         `;
     }
     inputHtml += '</div>';
+    
+    let choicesHtml = extractChoices(q);
     
     let html = `
         <div class="step-panel-header">
@@ -380,9 +501,10 @@ function renderSingleQuestion() {
         <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${q.text}</div>
         
         ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-        ${q.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${q.view}</div>` : ''}
+        ${q.view ? `<div class="box-view" style="white-space: pre-wrap; line-height: 1.5; font-size: 13px;">${q.view}</div>` : ''}
         
         ${inputHtml}
+        ${choicesHtml}
         
         <div id="instant-reveal-area"></div>
 
@@ -411,10 +533,16 @@ function renderSingleQuestion() {
 function focusInitialField(q) {
     if (q.inputCount > 1) {
         const firstInput = document.querySelector(`.multi-input-${q.id}[data-index="0"]`);
-        if (firstInput) firstInput.focus();
+        if (firstInput) {
+            firstInput.focus();
+            activeInputRef = firstInput;
+        }
     } else {
         const singleInput = document.getElementById("active-single-input");
-        if (singleInput) singleInput.focus();
+        if (singleInput) {
+            singleInput.focus();
+            activeInputRef = singleInput;
+        }
     }
 }
 
@@ -528,14 +656,17 @@ async function submitQuizAnswers() {
 
 function saveHistoryToLocal(result) {
     const history = getHistoryLogs();
-    const wrongs = result.reviewData.filter(r => !r.isRight).map(w => ({
-        source: w.source,
-        text: w.text,
-        view: w.view,
-        userAnswer: w.userAnswer,
-        realAnswer: w.realAnswer,
-        desc: w.desc,
-        image: w.image || null
+    // 오답뿐만 아니라 맞은 문항 정보와 고유 아이디까지 유실 없이 동적 구조화하여 영구 매핑합니다.
+    const questions = result.reviewData.map(r => ({
+        id: r.id,
+        source: r.source,
+        text: r.text,
+        view: r.view,
+        userAnswer: r.userAnswer,
+        realAnswer: r.realAnswer,
+        desc: r.desc,
+        image: r.image || null,
+        isRight: r.isRight
     }));
     
     const currentSolvedIds = result.reviewData.map(r => r.id);
@@ -545,8 +676,8 @@ function saveHistoryToLocal(result) {
         date: new Date().toLocaleString('ko-KR'),
         score: result.score,
         total: result.total,
-        wrongCount: wrongs.length,
-        wrongs: wrongs,
+        wrongCount: result.reviewData.filter(r => !r.isRight).length,
+        questions: questions,
         solvedIds: currentSolvedIds
     };
     
@@ -558,6 +689,9 @@ function renderReviewResult(result) {
     document.getElementById("header-center-title").innerText = "채점 분석 리포트";
     const view = document.getElementById("view-renderer");
     activeSessionId = null;
+    activeInputRef = null;
+    
+    window.currentReviewQuestions = result.reviewData;
     
     let html = `
         <div style="text-align:center; padding:15px 0;">
@@ -569,8 +703,11 @@ function renderReviewResult(result) {
     `;
     
     result.reviewData.forEach((r, idx) => {
+        const isBookmarked = isQuestionBookmarked(r.text);
+        const starChar = isBookmarked ? "★" : "☆";
         html += `
-            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : '#e74c3c'}">
+            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : '#e74c3c'}; position: relative;">
+                <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromReview(${idx}, this)">${starChar}</span>
                 <div class="source-tag">${idx + 1}번 항목 | 출처: ${r.source} [${r.isRight ? 'PASS' : 'FAIL'}]</div>
                 <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${r.text}</div>
                 ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
