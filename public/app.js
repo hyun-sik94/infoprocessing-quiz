@@ -753,7 +753,7 @@ function renderReviewResult(result) {
     view.innerHTML = html;
     view.scrollTop = 0;
 }
-
+//수정
 function exitToDashboard() {
     if (activeSessionId) {
         if (confirm("현재 회차 진행 정보가 손실됩니다. 메인 대시보드로 돌아가시겠습니까?")) {
