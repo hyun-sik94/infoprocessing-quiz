@@ -11,6 +11,17 @@ let activeInputRef = null;
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
 const HISTORY_KEY = "정처기_이력_목록";
 
+// 지문 속의 <R> 이나 <S> 같은 데이터 기호가 HTML 줄긋기 태그로 잘못 작동하는 것을 방지하는 이스케이프 함수입니다.
+function escapeHtml(str) {
+    if (!str) return "";
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function getBookmarkedQuestions() {
     const data = localStorage.getItem(BOOKMARK_KEY);
     return data ? JSON.parse(data) : [];
@@ -164,7 +175,7 @@ function renderSearchResults(results, query) {
                 <div class="log-box-card" style="border-top-color: #3498db;">
                     <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
                     <div class="source-tag">${r.source}</div>
-                    <div class="question-title" style="font-size: 14px; padding-right: 25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">문제: ${r.text}</div>
+                    <div class="question-title" style="font-size: 14px; padding-right: 25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">문제: ${escapeHtml(r.text)}</div>
                     ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${r.view}</div>` : ''}
                     <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
@@ -229,9 +240,9 @@ function renderMyBookmarksTab() {
     bookmarks.forEach((b, idx) => {
         html += `
             <div class="log-box-card" style="border-top-color: #f1c40f;">
-                <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab('${b.text}')">★</span>
+                <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab('${b.text.replace(/'/g, "\\'")}')">★</span>
                 <div class="source-tag">${b.source}</div>
-                <div class="question-title" style="font-size:14px; padding-right:25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">${b.text}</div>
+                <div class="question-title" style="font-size:14px; padding-right:25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">${escapeHtml(b.text)}</div>
                 ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${b.view}</div>` : ''}
                 <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${b.answer}</div>
@@ -250,11 +261,14 @@ function removeBookmarkFromTab(text) {
 function startBookmarkQuiz() {
     const bookmarks = getBookmarkedQuestions();
     const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
-    if (bookmarkIds.length === 0) {
+    const bookmarkTexts = bookmarks.map(b => b.text);
+    
+    if (bookmarks.length === 0) {
         alert("새로운 즐겨찾기를 등록한 뒤 가동해 주십시오.");
         return;
     }
-    triggerNewQuizSession('bookmark', bookmarkIds);
+    
+    triggerNewQuizSession('bookmark', { ids: bookmarkIds, texts: bookmarkTexts });
 }
 
 function fetchHistoryLogs() {
@@ -289,7 +303,7 @@ function fetchHistoryLogs() {
                             <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#2ecc71' : '#e74c3c'}; padding-left: 10px; margin-bottom: 12px; position: relative;">
                                 <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
                                 <div style="font-weight:bold; color:${isRight ? '#2ecc71' : '#c0392b'}; margin-bottom:3px;">${w.source} [${isRight ? '정답' : '오답'}]</div>
-                                <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${w.text}</div>
+                                <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>
                                 ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                                 ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
                                 <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#27ae60':'#c0392b'}">${w.userAnswer || "미입력"}</span></div>
@@ -387,12 +401,10 @@ async function triggerNewQuizSession(customYear, customIds) {
     }
 }
 
-// 지문 속 순수 보기 구성 텍스트 라인만 추출하여 정밀 분할하는 파싱 엔진입니다.
 function extractChoices(q) {
     let targetText = "";
     let idx = -1;
     
-    // 지문(text)과 안내문(view) 영역을 분리 감지하여 보기 태그 위치를 추적합니다.
     if (q.text && (q.text.includes("[보기]") || q.text.includes("<보기>"))) {
         targetText = q.text;
         idx = q.text.lastIndexOf("[보기]");
@@ -409,7 +421,6 @@ function extractChoices(q) {
     let lines = choicesText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
     let cleanLines = [];
     
-    // 보기 영역 하단에 밀려 들어오는 지시문 및 안내 텍스트 라인을 전면 필터링 차단합니다.
     for (let line of lines) {
         if (line.includes("기입") || line.includes("선택하여") || line.includes("쓰시오") || 
             line.includes("입력란") || line.includes("번 칸") || line.includes("양식에") || 
@@ -441,7 +452,6 @@ function extractChoices(q) {
     
     let html = '<div class="choices-container" style="margin-top: 12px; margin-bottom: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-start;">';
     
-    // 버튼 외벽을 감싸던 어색한 괄호 기호()를 전면 삭제하고 텍스트 원형만 노출하도록 UI를 수정했습니다.
     items.forEach(item => {
         let cleanVal = item;
         let m = item.match(/^([ㄱ-ㅎ가-힣a-zA-Z0-9])\.\s*(.*)$/);
@@ -530,9 +540,9 @@ function renderSingleQuestion() {
             <span class="bookmark-toggle-btn" id="bookmark-icon" onclick="handleBookmarkClick()">${starChar}</span>
         </div>
         <div class="source-tag">${q.source}</div>
-        <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${q.text}</div>
+        <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${escapeHtml(q.text)}</div>
         
-        ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+        ${q.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
         ${q.view ? `<div class="box-view" style="white-space: pre-wrap; line-height: 1.5; font-size: 13px;">${q.view}</div>` : ''}
         
         ${choicesHtml}
@@ -674,19 +684,33 @@ function moveStep(dir) {
 }
 
 async function submitQuizAnswers() {
-    const res = await fetch('/api/quiz/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: activeSessionId, userAnswers: savedUserAnswers })
-    });
-    const result = await res.json();
-    
-    saveHistoryToLocal(result);
-    
-    renderReviewResult(result);
+    try {
+        const res = await fetch('/api/quiz/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: activeSessionId, userAnswers: savedUserAnswers })
+        });
+        const result = await res.json();
+        
+        if (!res.ok || result.error || !result.reviewData) {
+            alert("채점 처리 중 오류가 발생했습니다.\n원인: " + (result.error || "정상적인 채점 데이터를 수신하지 못했습니다."));
+            return;
+        }
+        
+        saveHistoryToLocal(result);
+        renderReviewResult(result);
+    } catch (e) {
+        alert("서버와 통신에 실패했습니다.");
+        console.error(e);
+    }
 }
 
 function saveHistoryToLocal(result) {
+    if (!result || !result.reviewData) {
+        console.error("로컬 저장 실패: 유효한 복습 데이터가 없습니다.");
+        return;
+    }
+
     const history = getHistoryLogs();
     const questions = result.reviewData.map(r => ({
         id: r.id,
@@ -740,7 +764,7 @@ function renderReviewResult(result) {
             <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : '#e74c3c'}; position: relative;">
                 <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromReview(${idx}, this)">${starChar}</span>
                 <div class="source-tag">${idx + 1}번 항목 | 출처: ${r.source} [${r.isRight ? 'PASS' : 'FAIL'}]</div>
-                <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${r.text}</div>
+                <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
                 ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.4;">${r.view}</div>` : ''}
                 <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${r.userAnswer || "미입력"}</span></div>
@@ -753,7 +777,7 @@ function renderReviewResult(result) {
     view.innerHTML = html;
     view.scrollTop = 0;
 }
-//수정
+
 function exitToDashboard() {
     if (activeSessionId) {
         if (confirm("현재 회차 진행 정보가 손실됩니다. 메인 대시보드로 돌아가시겠습니까?")) {
