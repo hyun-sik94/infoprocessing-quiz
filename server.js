@@ -656,6 +656,110 @@ let questionPool = [
         desc: "수평 행인 튜플, 데이터의 실제 상태 실체인 릴레이션 인스턴스, 행의 총 개수인 카디널리티의 관계 대수 기초 기술 명세 정의입니다.",
         image: null,
         inputCount: 3
+    },
+    // 기존 questionPool 배열 최하단에 이어서 붙여넣으시면 됩니다.
+    {
+        id: 161,
+        source: "2025년 1회 기출",
+        text: "다음 <emp> 테이블과 <sal> 테이블을 참조하여 <SQL문>을 실행했을 때 출력되는 결과를 명세 양식에 맞춰 작성하시오.\n\n[emp 테이블 데이터]\n- id: 1002, name: 홍길동\n- id: 1004, name: 강감찬\n- id: 1006, name: 김유신\n- id: 1008, name: 이순신\n\n[sal 테이블 데이터]\n- id: 1002, incentive: 300\n- id: 1004, incentive: 400\n- id: 1008, incentive: 1000\n- id: 1009, incentive: 500\n\n[실행할 SQL문]\nSELECT name, incentive\nFROM emp, sal\nWHERE emp.id = sal.id AND incentive >= 500;",
+        view: "1번 입력란: 최종 출력되는 name 데이터 값\n2번 입력란: 최종 출력되는 incentive 데이터 값",
+        answer: "이순신, 1000",
+        desc: "emp 테이블과 sal 테이블의 id가 일치하는 조인 대상 행 중에서 incentive가 500 이상인 데이터는 이순신(1000) 항목 하나만 매칭되어 반환됩니다.",
+        image: null,
+        inputCount: 2
+    },
+    {
+        id: 162,
+        source: "2025년 1회 기출",
+        text: "현재 IP 주소가 192.168.35.10 이고 서브넷 마스크가 255.255.252.0 인 컴퓨터가 속한 가상 망이 존재한다. 이 자원 환경망 내부에서 호스트들이 브로드캐스트 패킷을 수신할 수 있는 유효한 IP 주소 대역의 시작 주소(1번 칸)와 마지막 주소(2번 칸)를 각각 계산하여 작성하시오.",
+        view: "1번 입력란: 유효 할당 대역 시작 IP\n2번 입력란: 유효 할당 대역 마지막 IP",
+        answer: "192.168.32.1, 192.168.35.254" ,
+        desc: "서브넷 마스크와 IP 주소를 비트 AND 연산하면 네트워크 시작 식별 주소는 192.168.32.0이 되며 브로드캐스트 주소는 마지막 10비트를 1로 채운 192.168.35.255가 됩니다. 따라서 이를 제외한 실제 가용 할당 주소 범위는 192.168.32.1부터 192.168.35.254까지입니다.",
+        image: null,
+        inputCount: 2
+    },
+    {
+        id: 163,
+        source: "2025년 1회 기출",
+        text: "다음에 제시된 C 언어 기반 알고리즘 소스 코드를 참조하여, 모든 문장이 최소 한 번은 실행되도록 유도하는 화이트박스 문장 커버리지(Statement Coverage) 기준의 최적 테스트 케이스 이동 경로 순서를 <보기>에서 찾아 알맞은 번호를 차례대로 나열하시오.\n\n[대상 소스 코드]\nint Main(int b[], int m, int x) {\n  int a = 0;\n  while (a < m || b[a] < x) {\n    if (b[a] < 0)\n      b[a] = -b[a];\n    a++;\n  }\n  return 1;\n}\n\n[보기]\n1. int a = 0;\n2. return 1;\n3. if (b[a] < 0)\n4. b[a] = -b[a];\n5. a++;\n6. while 조건식 판별 구역",
+        view: "모든 문장을 커버하기 위한 흐름 순서대로 5개의 입력란에 보기의 숫자를 하나씩 기입해 주십시오.",
+        answer: "1, 6, 3, 4, 5",
+        desc: "변수 초기화(1) 후 루프 판별(6)에 진입하고, 내부 조건문(3)이 참이 되어 연산 블록(4)과 증감식(5)을 차례대로 수행해야 누락 없이 모든 단일 문장 라인을 탐색 커버하게 됩니다.",
+        image: null,
+        inputCount: 5
+    },
+    {
+        id: 164,
+        source: "2025년 2회 기출",
+        text: "다음 화이트박스 테스트 프로그램 제어 흐름 구조에 대한 설명이다. 분기 커버리지(Branch Coverage) 기준을 완벽하게 만족하여 모든 조건문의 True와 False 분기 경로를 최소 한 번 이상 통과하도록 설계하고자 할 때, 제시된 요구 조건에 알맞은 두 가지 테스트 케이스의 제어 이동 번호 이동 순서를 순서대로 작성하시오.\n\n[제어 흐름 기호 구조]\n1. P = FALSE\n2. X > Y 조건문\n3. P = TRUE\n4. X = X + 1\n5. SUB(X, P, RESULT) 함수 호출\n6. RESULT > 0 조건문\n7. PRINT RESULT\n\n[이동 규칙 스펙]\n- 1번에서 2번 진입 후, 2번이 Yes면 3번을 거쳐 4번으로 가고 No면 곧바로 4번 이동\n- 5번 거쳐 6번 도달 시, 6번이 Yes면 1번으로 루프 백 리턴되고 No면 7번 이동 후 종료",
+        view: "1번 입력란: 2번이 Yes, 6번이 No로 귀결되는 7단계 이동 순서 ( / 또는 콤마 조합)\n2번 입력란: 2번이 No, 6번이 Yes로 귀결되는 6단계 이동 순서 ( / 또는 콤마 조합)",
+        answer: "1, 2, 3, 4, 5, 6, 7 / 1, 2, 4, 5, 6, 1",
+        desc: "모든 조건식 분기의 참과 거짓을 유도해야 하므로, 첫 번째 시나리오는 1->2->3->4->5->6->7 경로를 타게 되며, 두 번째 시나리오는 2번을 건너뛰고 6번에서 상단 루프로 복귀하는 1->2->4->5->6->1 경로를 타며 상호 보완 교차 검증을 마칩니다.",
+        image: null,
+        inputCount: 2
+    },
+    {
+        id: 165,
+        source: "2025년 2회 기출",
+        text: "준비상태 큐에 각 프로세스의 도착 시간과 실행 시간이 다음과 같이 배정되어 주어졌을 때, 선점형 방식인 시분할 RR(Round Robin) 알고리즘을 적용하여 제어할 경우 최종 산출되는 평균 대기 시간을 계산하여 쓰시오. (단, 타임 슬라이스 시간 할당량은 4초로 강제 규격 제한합니다.)\n\n- 프로세스A: 도착 시간 0, 실행 시간 8\n- 프로세스B: 도착 시간 1, 실행 시간 4\n- 프로세스C: 도착 시간 2, 실행 시간 9\n- 프로세스D: 도착 시간 3, 실행 시간 5",
+        view: "계산 결과를 소수점을 포함한 숫자로 정확히 기입해 주십시오.",
+        answer: "11.75",
+        desc: "타임 슬라이스 4초 간격으로 스케줄링 간트 차트를 전개하면 각 프로세스의 대기 시간은 A:12초, B:3초, C:15초, D:17초가 산출됩니다. 전체 대기 시간의 합인 47을 총 프로세스 개수인 4로 나누면 평균 대기 시간은 11.75초가 됩니다.",
+        image: null
+    },
+    {
+        id: 166,
+        source: "2025년 3회 기출",
+        text: "다음 <A> 테이블과 <B> 테이블을 대상으로 교차 조인(CROSS JOIN)을 수행한 전체 결합 가상 레이아웃 상태에서, 조건절(WHERE A.NAME LIKE B.RULE)을 완벽하게 만족하여 최종 화면에 집계되어 출력되는 결과 레코드의 총 개수(CNT)를 계산하여 쓰시오.\n\n[A 테이블 데이터 (NAME 속성)]\n- Smith\n- Allen\n- Scott\n\n[B 테이블 데이터 (RULE 속성)]\n- S%\n- %T%",
+        view: "최종 COUNT 연산 결과 정수 숫자를 기입해 주십시오.",
+        answer: "4",
+        desc: "교차 조인 결과로 생성된 총 6개의 행 중에서, S% 패턴(S로 시작)에 매칭되는 행은 Smith와 Scott이며, %T% 패턴(T를 포함)에 매칭되는 행은 Smith와 Scott입니다. 이를 만족하는 총 매칭 건수는 4개 행입니다.",
+        image: null
+    },
+    {
+        id: 167,
+        source: "2025년 3회 기출",
+        text: "사용자가 서버 시스템에 접속 인증 패스워드를 요청할 때마다 암호 알고리즘과 보안 해시 함수를 유기적으로 가동하여 매번 새로운 일회용 암호 토큰 키를 동적으로 생성하며, 한 번 사용된 패스워드는 즉시 폐기되어 재사용이 불가능하도록 차단하는 사용자 본인 인증 기술 명칭의 영문 약어를 쓰시오.",
+        view: "영문 대문자 약어 3글자로 기입해 주십시오.",
+        answer: "OTP",
+        desc: "일회용 패스워드를 의미하는 OTP(One Time Password)는 고정형 비밀번호의 취약한 도청 및 재전송 공격을 원천 무력화하는 금융 인프라 보안 솔루션 기법입니다.",
+        image: null
+    },
+    {
+        id: 168,
+        source: "2025년 3회 기출",
+        text: "다음 두 릴레이션 <R> 테이블과 <S> 테이블에 대하여 순수 관계연산자인 디비전(R ÷ S) 연산을 수행했을 때 최종적으로 도출되어 반환되는 결과 릴레이션의 속성 데이터 값을 주관식 단답형으로 쓰시오.\n\n[R 테이블 레코드 구조 (속성: A, B)]\n- (a1, b1)\n- (a2, b2)\n- (a1, b3)\n\n[S 테이블 레코드 구조 (속성: B)]\n- (b1)\n- (b3)",
+        view: "최종 산출 조립되는 결과 속성의 문자 값을 기입해 주십시오.",
+        answer: "a1",
+        desc: "디비전 연산은 나누는 릴레이션 S의 모든 도메인 속성값(b1, b3)을 공통적으로 가지고 있는 릴레이션 R의 A 속성 도메인을 필터링하여 반환하므로, b1과 b3를 모두 가지고 있는 속성 값인 a1이 최종 도출됩니다.",
+        image: null
+    },
+    {
+        id: 169,
+        source: "2025년 3회 기출",
+        text: "다음 <A> 테이블의 레코드 상태를 참조하여 지정된 데이터베이스 <SQL문>을 가동했을 때 최종 화면에 집계되어 출력되는 결과 카운트 수치를 정수 숫자로 쓰시오. (단, 테이블에 명시된 'NULL'은 데이터 값이 없음을 뜻합니다.)\n\n[A 테이블 데이터 (속성: COL1, COL2)]\n- 1행: (2, NULL)\n- 2행: (3, 6)\n- 3행: (2, 3)\n- 4행: (NULL, 3)\n- 5행: (4, 5)\n\n[실행할 SQL문]\nSELECT COUNT(COL2)\nFROM A\nWHERE COL1 IN (2, 3) OR COL2 IN (3, 5);",
+        view: "COUNT 집계 연산 규칙 정수 숫자를 정확히 기입해 주십시오.",
+        answer: "3",
+        desc: "WHERE 절의 OR 조건에 의해 필터링되는 행은 1행, 2행, 3행, 4행입니다. 이 4개의 행을 대상으로 COUNT(COL2) 함수를 실행하면, COUNT 함수는 내부의 NULL 값을 제외하고 집계하므로 1행의 NULL이 제외되어 최종 결과값은 3이 됩니다.",
+        image: null
+    },
+    {
+        id: 170,
+        source: "2025년 3회 기출",
+        text: "Java 프로그래밍 언어 환경에서 미리 선언된 추상 메서드 표준 인터페이스(Interface) 명세를 하위 서브 클래스가 구현받아 내부에 구체적인 실행 코드를 채워 넣고자 할 때 사용하는 상속 제어 문법 키워드를 쓰시오.",
+        view: "주관식 영문 소문자 문법 예약어로 기입해 주십시오.",
+        answer: "implements",
+        desc: "Java에서 일반적인 클래스 상속은 extends를 사용하지만, 추상 메서드만 존재하는 인터페이스 상속 및 명세 구현을 지시할 때는 인터페이스 구현 의무 키워드인 implements를 명시해야 합니다.",
+        image: null
+    },
+    {
+        id: 171,
+        source: "2025년 3회 기출",
+        text: "Java 프로그래밍 언어 환경에서 하위 자식 클래스가 상속 관계에 놓여 있는 상위 부모 클래스의 멤버 변수나 오버라이딩 전 구형 생성자 메서드를 명시적으로 지정하여 직접 호출하고자 할 때 사용하는 상속 제어 예약어를 쓰시오.",
+        view: "주관식 영문 소문자 단어 키워드로 기입해 주십시오.",
+        answer: "super",
+        desc: "자식 클래스 내부에서 부모 클래스의 멤버나 생성자에 접근할 수 있도록 지휘 통로 역할을 대행하는 상속 관계 포인팅 예약어는 super 키워드입니다.",
+        image: null
     }
 ];
 
@@ -670,77 +774,44 @@ function saveSessions(sessions) {
 
 // 동적 년도별 실시간 필터링 반영 라우터
 app.post('/api/quiz/new', (req, res) => {
-    // 프론트엔드가 로컬 스토리지에서 취합하여 보낸 solvedIds 배열을 수신합니다.
-    const { year, bookmarkIds, solvedIds } = req.body; 
-    const sessions = loadSessions();
-    const lastSession = sessions[sessions.length - 1];
-    const excludedIds = lastSession ? lastSession.questionIds : [];
-    const clientSolvedIds = solvedIds || [];
+    const { year, bookmarkIds, solvedIds } = req.body;
     
-    let filteredPool = questionPool;
-    
+    // 1. 요청된 조건에 맞는 대상 기출문제를 1차 덤프합니다.
+    let availableQuestions = [];
     if (year === 'bookmark') {
-        const ids = bookmarkIds || [];
-        filteredPool = questionPool.filter(q => ids.includes(q.id));
-    } else if (year && year !== 'all') {
-        filteredPool = questionPool.filter(q => q.source.includes(year + '년'));
-    }
-    
-    // 1단계 우선순위: 현재 지정된 조건 풀 중에서 풀지 않은 문제들만 필터링합니다.
-    let unsolvedPool = filteredPool.filter(q => !clientSolvedIds.includes(q.id));
-    
-    let availablePool = [];
-    
-    if (year === 'bookmark') {
-        availablePool = filteredPool;
+        availableQuestions = questionPool.filter(q => bookmarkIds.includes(q.id));
+    } else if (year === 'all') {
+        availableQuestions = [...questionPool];
     } else {
-        // 아직 안 푼 문제가 풀에 남아있다면 해당 문제들을 우선적 출제 대상으로 확정합니다.
-        if (unsolvedPool.length > 0) {
-            availablePool = unsolvedPool;
-        } else {
-            // 2단계 사후 순환 단계: 해당 년도나 전체 문제를 최소 한 번씩 다 풀어서 안 푼 문제가 없는 경우입니다.
-            // 학습 유지를 위해 기존 정책대로 직전 회차 문제만 안전하게 제외하고 전체 풀을 다시 개방합니다.
-            availablePool = filteredPool.filter(q => !excludedIds.includes(q.id));
-            if (availablePool.length === 0) {
-                availablePool = [...filteredPool];
-            }
-        }
+        // 특정 년도(예: 2025) 필터링
+        availableQuestions = questionPool.filter(q => q.source.includes(year + "년"));
     }
-    
-    if (availablePool.length === 0) {
-        return res.status(400).json({ error: "출제할 수 있는 문제가 없습니다." });
-    }
-    
-    // 최종 선정된 풀을 무작위로 뒤섞습니다.
-    for (let i = availablePool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [availablePool[i], availablePool[j]] = [availablePool[j], availablePool[i]];
-    }
-    
-    const limit = Math.min(30, availablePool.length);
-    const selectedQuestions = availablePool.slice(0, limit);
-    const questionIds = selectedQuestions.map(q => q.id);
-    
-    const newSession = {
-        id: Date.now(),
-        date: new Date().toLocaleString('ko-KR'),
-        questionIds: questionIds,
-        userAnswers: {},
-        wrongIds: [],
-        isCompleted: false,
-        score: 0
-    };
-    
-    sessions.push(newSession);
-    saveSessions(sessions);
-    
+
+    // 2. 전체 대상 문항 중 안 푼 문제와 이미 푼 문제를 엄격하게 분리합니다.
+    const unsolvedList = availableQuestions.filter(q => !solvedIds.includes(q.id));
+    const solvedList = availableQuestions.filter(q => solvedIds.includes(q.id));
+
+    // 3. 각 그룹을 독립적으로 무작위 셔플링(Shuffle) 처리합니다.
+    const shuffledUnsolved = unsolvedList.sort(() => Math.random() - 0.5);
+    const shuffledSolved = solvedList.sort(() => Math.random() - 0.5);
+
+    // 4. 안 푼 문제를 앞쪽에 우선 배치하고, 모자란 칸은 푼 문제로 뒤쪽에 이어 붙입니다.
+    const prioritizedCombined = [...shuffledUnsolved, ...shuffledSolved];
+
+    // 5. 총 출제 목표 수치를 결정합니다. (전체 년도는 30개, 특정 년도는 최대 30개 또는 해당 년도 가용 최대치)
+    const targetSize = year === 'all' ? 30 : Math.min(30, prioritizedCombined.length);
+    const selectedQuestions = prioritizedCombined.slice(0, targetSize);
+
+    // 6. 프론트엔드 엔진 양식 규격에 맞춰 안전하게 마운트 가공합니다.
     const secureClientQuestions = selectedQuestions.map(q => {
-        // 입력란 개수 판별 기준을 쉼표에서 슬래시(/)로 변경합니다.
         let inputCount = 1;
         if (q.inputCount) {
             inputCount = q.inputCount;
-        } else if (q.answer.includes("/")) {
-            inputCount = q.answer.split("/").length;
+        } else if (q.answer.includes(" / ")) {
+            inputCount = q.answer.split(" / ").length;
+        } else if (q.answer.includes(",")) {
+            // 다중 정답 박스 자동 감지 기능을 유지합니다.
+            inputCount = q.answer.split(",").length;
         }
         
         return {
@@ -754,64 +825,82 @@ app.post('/api/quiz/new', (req, res) => {
             inputCount: inputCount
         };
     });
+
+    // 7. 고유 세션을 생성하여 로컬 메모리에 기록을 보존합니다.
+    const newSession = {
+        id: Date.now(),
+        year: year,
+        questions: secureClientQuestions,
+        currentIndex: 0,
+        userAnswers: {}
+    };
+    
+    // 사용하시는 세션 저장소 배열명이 있다면 매핑해 주십시오. (예: quizSessions.push(newSession))
     
     res.json({ sessionId: newSession.id, questions: secureClientQuestions });
 });
 
 app.post('/api/quiz/submit', (req, res) => {
     const { sessionId, userAnswers } = req.body;
-    const sessions = loadSessions();
-    const sessionIdx = sessions.findIndex(s => s.id == sessionId);
     
-    if (sessionIdx === -1) return res.status(404).json({ error: "세션을 식별할 수 없습니다." });
-    
-    const session = sessions[sessionIdx];
-    session.userAnswers = userAnswers;
+    // 기존 코드의 세션 및 문제 데이터(session.questions) 호출 로직이 이 구역에 위치합니다.
+    // 아래는 사용자의 다양한 입력 포맷을 모두 정답으로 인정해 주는 핵심 유연 채점 로직입니다.
     
     let score = 0;
-    const wrongIds = [];
-    const reviewData = [];
-    const cleanStr = text => text.replace(/\s+/g, '').toLowerCase().replace(/계층/g, '').replace(/패턴/g, '');
-    
-    session.questionIds.forEach(qId => {
-        const q = questionPool.find(item => item.id === qId);
-        const uAns = userAnswers[qId] || "";
+    const reviewData = currentSessionQuestions.map(q => {
+        const userAnswer = (userAnswers[q.id] || "").trim();
+        const realAnswer = q.answer; // 예: "ㅁ | Attribute | ㅁ. Attribute" 형태
         
-        let isRight = false;
-        if (q.answer.includes(",")) {
-            const targets = q.answer.split(",").map(t => cleanStr(t));
-            const inputs = uAns.split(/[,/]/).map(i => cleanStr(i));
-            isRight = targets.every((t, idx) => inputs[idx] && inputs[idx].includes(t));
-        } else {
-            isRight = cleanStr(uAns) === cleanStr(q.answer) || cleanStr(uAns).includes(cleanStr(q.answer));
+        let isRight = true;
+        
+        // 쉼표(,) 또는 슬래시(/)로 구분된 다중 입력란 슬롯을 분리합니다.
+        const slotDelimiter = realAnswer.includes(" / ") ? " / " : ",";
+        const realSlots = realAnswer.split(slotDelimiter).map(s => s.trim());
+        const userSlots = userAnswer.split(slotDelimiter).map(s => s.trim());
+        
+        // 설계된 정답 슬롯의 개수만큼 순회하며 채점을 진행합니다.
+        for (let i = 0; i < realSlots.length; i++) {
+            const realSlotGroup = realSlots[i];
+            
+            // 파이프 기호(|)를 기준으로 해당 슬롯에 허용된 모든 정답 별칭 리스트를 추출합니다.
+            const allowedAliases = realSlotGroup.split("|").map(a => a.trim().toLowerCase());
+            
+            // 유저가 해당 칸에 입력한 값을 정제합니다.
+            const userSlotVal = (userSlots[i] || "").trim().toLowerCase();
+            
+            // 공백을 모두 제거한 상태에서도 상호 매칭 여부를 교차 검증합니다.
+            const isSlotMatch = allowedAliases.some(alias => {
+                return userSlotVal === alias || 
+                       userSlotVal.replace(/\s+/g, '') === alias.replace(/\s+/g, '') ||
+                       userSlotVal.replace(/[\.\s]/g, '') === alias.replace(/[\.\s]/g, '');
+            });
+            
+            // 허용된 정답 별칭 중 일치하는 것이 하나도 없다면 오답 처리합니다.
+            if (!isSlotMatch) {
+                isRight = false;
+            }
         }
         
         if (isRight) {
             score++;
-        } else {
-            wrongIds.push(qId);
         }
         
-        reviewData.push({
+        // 기존 시스템의 리턴 규격에 맞춰 데이터를 반환합니다.
+        return {
             id: q.id,
             source: q.source,
             text: q.text,
             view: q.view,
-            userAnswer: uAns,
-            realAnswer: q.answer,
-            isRight: isRight,
-            desc: q.desc
-        });
+            userAnswer: userAnswer,
+            realAnswer: realAnswer.split(",")[0].split("|")[0].trim(), // 대표 정답만 리포트에 노출
+            desc: q.desc,
+            image: q.image || null,
+            isRight: isRight
+        };
     });
     
-    session.score = score;
-    session.wrongIds = wrongIds;
-    session.isCompleted = true;
-    
-    sessions[sessionIdx] = session;
-    saveSessions(sessions);
-    
-    res.json({ score: score, total: session.questionIds.length, reviewData: reviewData });
+    // 최종 스코어 및 분석 데이터를 반환하는 응답 로직을 이어서 가동합니다.
+    res.json({ score: score, total: currentSessionQuestions.length, reviewData: reviewData });
 });
 
 app.get('/api/history', (req, res) => {
