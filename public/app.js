@@ -2,16 +2,15 @@ let sessionQuizData = [];
 let currentQuizIndex = 0;
 let savedUserAnswers = {};
 let activeSessionId = null;
+let activeSessionYear = null;
 let revealedAnswers = {};
 let globalTabState = "all";
 
-// 현재 사용자가 터치하여 입력 중인 인풋 박스를 실시간 추적하는 글로벌 참조 변수입니다.
 let activeInputRef = null;
 
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
 const HISTORY_KEY = "정처기_이력_목록";
 
-// 지문 속의 <R> 이나 <S> 같은 데이터 기호가 HTML 줄긋기 태그로 잘못 작동하는 것을 방지하는 이스케이프 함수입니다.
 function escapeHtml(str) {
     if (!str) return "";
     return str
@@ -71,6 +70,7 @@ function switchMainTab(tabType) {
         if (activeSessionId) {
             if (confirm("현재 진행 중인 모의고사 화면을 빠져나가고 즐겨찾기 메뉴로 이동하시겠습니까?")) {
                 activeSessionId = null;
+                activeSessionYear = null;
                 renderMyBookmarksTab();
             } else {
                 document.getElementById("tab-my").classList.remove("active");
@@ -84,6 +84,7 @@ function switchMainTab(tabType) {
 
 async function loadMainDashboard() {
     activeSessionId = null;
+    activeSessionYear = null;
     activeInputRef = null;
     document.getElementById("header-center-title").innerText = "기출 메인 허브";
     const container = document.getElementById("view-renderer");
@@ -104,6 +105,7 @@ async function loadMainDashboard() {
                     <option value="2023">2023년도 기출 이론 선택</option>
                     <option value="2024">2024년도 기출 이론 선택</option>
                     <option value="2025">2025년도 기출 이론 선택</option>
+                    <option value="sequential">전체 문항 순서대로 풀기 (1번부터 정주행)</option>
                 </select>
             </div>
 
@@ -121,14 +123,30 @@ async function loadMainDashboard() {
         </div>
         
         <div id="dashboard-dynamic-area">
-            <div style="border-left:4px solid #34495e; padding-left:8px; font-weight:bold; color:#34495e; font-size:15px; margin-bottom:15px; margin-top: 10px;">
-                회차별 풀이 이력 및 오답확인
+            <div onclick="toggleHistoryAreaVisibility()" style="border-left:4px solid #34495e; padding-left:8px; font-weight:bold; color:#34495e; font-size:15px; margin-bottom:15px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+                <span>회차별 풀이 이력 및 오답확인</span>
+                <span id="history-toggle-arrow" style="font-size: 12px; margin-right: 10px; color: #7f8c8d;">▼</span>
             </div>
             <div id="history-ajax-area">이력을 조회하는 중입니다...</div>
         </div>
     `;
     
     fetchHistoryLogs();
+}
+
+function toggleHistoryAreaVisibility() {
+    const historyArea = document.getElementById("history-ajax-area");
+    const arrowElement = document.getElementById("history-toggle-arrow");
+    
+    if (!historyArea || !arrowElement) return;
+    
+    if (historyArea.style.display === "none") {
+        historyArea.style.display = "block";
+        arrowElement.innerText = "▼";
+    } else {
+        historyArea.style.display = "none";
+        arrowElement.innerText = "▲";
+    }
 }
 
 async function searchQuestionByAnswer() {
@@ -223,6 +241,7 @@ function renderMyBookmarksTab() {
     }
     
     const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
+    const bookmarkTexts = bookmarks.map(b => b.text);
     let startButtonHtml = "";
     if (bookmarkIds.length > 0) {
         startButtonHtml = `
@@ -240,12 +259,12 @@ function renderMyBookmarksTab() {
     bookmarks.forEach((b, idx) => {
         html += `
             <div class="log-box-card" style="border-top-color: #f1c40f;">
-                <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab('${b.text.replace(/'/g, "\\'")}')">★</span>
+                <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab(${idx})">★</span>
                 <div class="source-tag">${b.source}</div>
                 <div class="question-title" style="font-size:14px; padding-right:25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">${escapeHtml(b.text)}</div>
                 ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5;">${b.view}</div>` : ''}
-                <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${b.answer}</div>
+                <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${escapeHtml(b.answer)}</div>
                 <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${b.desc}</div>
             </div>
         `;
@@ -254,8 +273,11 @@ function renderMyBookmarksTab() {
     container.scrollTop = 0;
 }
 
-function removeBookmarkFromTab(text) {
-    toggleBookmarkStatus({ text: text });
+function removeBookmarkFromTab(index) {
+    const bookmarks = getBookmarkedQuestions();
+    if (bookmarks[index]) {
+        toggleBookmarkStatus(bookmarks[index]);
+    }
 }
 
 function startBookmarkQuiz() {
@@ -306,8 +328,8 @@ function fetchHistoryLogs() {
                                 <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>
                                 ${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                                 ${w.view ? `<div class="box-view" style="font-size:12px; padding:8px; margin-bottom:6px; white-space: pre-wrap; line-height: 1.5;">${w.view}</div>` : ''}
-                                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#27ae60':'#c0392b'}">${w.userAnswer || "미입력"}</span></div>
-                                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${w.realAnswer || w.answer}</div>
+                                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#27ae60':'#c0392b'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
+                                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${escapeHtml(w.realAnswer || w.answer)}</div>
                                 <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${w.desc}</div>
                             </div>
                         `;
@@ -366,6 +388,24 @@ async function triggerNewQuizSession(customYear, customIds) {
         const selectElem = document.getElementById("quiz-year-select");
         selectedYear = selectElem ? selectElem.value : "all";
     }
+
+    if (selectedYear === 'sequential' && localStorage.getItem("정처기_순차풀이_중간저장")) {
+        if (confirm("이전에 중간 멈춤 기록이 존재합니다. 이어서 계속 풀이하시겠습니까?\n[취소 누르면 처음 1번부터 다시 시작]")) {
+            const savedState = JSON.parse(localStorage.getItem("정처기_순차풀이_중간저장"));
+            activeSessionId = savedState.activeSessionId;
+            activeSessionYear = savedState.activeSessionYear;
+            sessionQuizData = savedState.sessionQuizData;
+            currentQuizIndex = savedState.currentQuizIndex;
+            savedUserAnswers = savedState.savedUserAnswers;
+            revealedAnswers = {};
+            activeInputRef = null;
+            
+            renderSingleQuestion();
+            return;
+        } else {
+            localStorage.removeItem("정처기_순차풀이_중간저장");
+        }
+    }
     
     const historyLogs = getHistoryLogs();
     let allSolvedIds = [];
@@ -389,6 +429,7 @@ async function triggerNewQuizSession(customYear, customIds) {
         const data = await res.json();
         
         activeSessionId = data.sessionId;
+        activeSessionYear = selectedYear;
         sessionQuizData = data.questions;
         currentQuizIndex = 0;
         savedUserAnswers = {};
@@ -459,9 +500,10 @@ function extractChoices(q) {
             cleanVal = m[1];
         }
         
+        const safeClickVal = cleanVal.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         html += `
             <button type="button" class="choice-badge" style="padding: 6px 12px; background: #ffffff; border: 1px solid #3498db; border-radius: 20px; font-size: 13px; color: #2980b9; cursor: pointer; font-weight: bold; outline: none; transition: background 0.2s;" 
-                onclick="handleChoiceClick('${cleanVal.replace(/'/g, "\\'")}')" 
+                onclick="handleChoiceClick('${safeClickVal}')" 
                 onfocus="this.style.background='#e8f0fe';" 
                 onblur="this.style.background='#ffffff';">
                 ${item}
@@ -509,6 +551,17 @@ function renderSingleQuestion() {
     
     let delimiter = q.answer.includes(" / ") ? " / " : ",";
     
+    if (activeSessionYear === 'sequential') {
+        const saveState = {
+            activeSessionId: activeSessionId,
+            activeSessionYear: activeSessionYear,
+            sessionQuizData: sessionQuizData,
+            currentQuizIndex: currentQuizIndex,
+            savedUserAnswers: savedUserAnswers
+        };
+        localStorage.setItem("정처기_순차풀이_중간저장", JSON.stringify(saveState));
+    }
+    
     let inputHtml = '<div class="input-block-wrapper">';
     if (q.inputCount > 1) {
         const cachedValue = savedUserAnswers[q.id] || "";
@@ -542,7 +595,7 @@ function renderSingleQuestion() {
         <div class="source-tag">${q.source}</div>
         <div class="question-title" style="white-space: pre-wrap; line-height: 1.6; font-size: 15px; word-break: break-all; letter-spacing: -0.3px;">${escapeHtml(q.text)}</div>
         
-        ${q.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+        ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
         ${q.view ? `<div class="box-view" style="white-space: pre-wrap; line-height: 1.5; font-size: 13px;">${q.view}</div>` : ''}
         
         ${choicesHtml}
@@ -697,6 +750,8 @@ async function submitQuizAnswers() {
             return;
         }
         
+        localStorage.removeItem("정처기_순차풀이_중간저장");
+        
         saveHistoryToLocal(result);
         renderReviewResult(result);
     } catch (e) {
@@ -744,6 +799,7 @@ function renderReviewResult(result) {
     document.getElementById("header-center-title").innerText = "채점 분석 리포트";
     const view = document.getElementById("view-renderer");
     activeSessionId = null;
+    activeSessionYear = null;
     activeInputRef = null;
     
     window.currentReviewQuestions = result.reviewData;
@@ -767,8 +823,8 @@ function renderReviewResult(result) {
                 <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
                 ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${r.view ? `<div class="box-view" style="font-size:12px; padding:10px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.4;">${r.view}</div>` : ''}
-                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${r.userAnswer || "미입력"}</span></div>
-                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${r.realAnswer}</div>
+                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60':'#c0392b'}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
+                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${escapeHtml(r.realAnswer)}</div>
                 <div style="margin-top:8px; font-size:12px; color:#555; background:#f8f9fa; padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${r.desc}</div>
             </div>
         `;

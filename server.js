@@ -1,17 +1,11 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
-const DATA_FILE = path.join(__dirname, 'sessions.json');
-// server.js 상단 구역에 세션 저장용 글로벌 객체를 하나 선언합니다.
-let quizSessions = {};
-
-// 2021년~2023년 정보처리기사 실기 기출 이론 데이터 셋 전체 보존
+// 데이터 변수 생략 구역
 let questionPool = [
     { id: 1, source: "2021년 3회 2번", text: "보안 위협에 관한 다음 설명에서 괄호에 공통으로 들어갈 알맞은 프로토콜 및 공격 명칭을 쓰시오.", view: "(  ) 스푸핑은 로컬 네트워크(LAN)에서 사용하는 (\n  ) 프로토콜의 취약점을 이용한 공격 기법으로, 자신의 물리적 주소(MAC)를 변조하여 다른 PC에게 도달해야 하는 데이터 패킷을 가로채거나 방해한다.", answer: "ARP", desc: "물리적 주소인 MAC 주소를 변조하여 데이터 패킷을 가로채는 2계층 공격입니다." },
     { id: 2, source: "2021년 3회 3번", text: "데이터를 제어하는 DCL의 하나인 GRANT의 기능에 대해 간략히 서술하시오.", view: null, answer: "권한 부여", desc: "데이터베이스 관리자가 특정 사용자에게 자원 및 객체 제어 권한을 부여하는 명령어입니다." },
@@ -183,26 +177,20 @@ let questionPool = [
     { id: 168, source: "2025년 3회 기출", text: "Java 프로그래밍 언어 환경에서 하위 자식 클래스가 상속 관계에 놓여 있는 상위 부모 클래스의 멤버 변수나 오버라이딩 전 구형 생성자 메서드를 명시적으로 지정하여 직접 호출하고자 할 때 사용하는 상속 제어 예약어를 쓰시오.", view: "<div class='quiz-code-box'>class Parent {<br>    int data = 100;<br>    Parent() {<br>        System.out.println(\"부모 생성자 호출\");<br>    }<br>}<br><br>class Child extends Parent {<br>    Child() {<br>        super(); // 부모 클래스의 생성자를 명시적으로 직접 호출<br>        System.out.println(super.data); // 부모의 멤버 변수를 직접 참조<br>    }<br>}</div>주관식 영문 소문자 단어 키워드로 기입해 주십시오.", answer: "super", desc: "자식 클래스 내부에서 부모 클래스의 멤버나 생성자에 접근할 수 있도록 지휘 통로 역할을 대행하는 상속 관계 포인팅 예약어는 super 키워드입니다." }
 ];
 
-function loadSessions() {
-    if (!fs.existsSync(DATA_FILE)) return [];
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-}
+let quizSessions = {};
 
-function saveSessions(sessions) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(sessions, null, 2), 'utf8');
-}
-
-// 동적 년도별 실시간 필터링 반영 라우터
 app.post('/api/quiz/new', (req, res) => {
     const { year, bookmarkIds, solvedIds } = req.body;
     
     let availableQuestions = [];
-    if (year === 'bookmark') {
-        // 클라이언트가 보낸 ID 배열과 텍스트 배열을 추출합니다.
+    let isSequentialMode = false;
+
+    if (year === 'sequential') {
+        availableQuestions = [...questionPool].sort((a, b) => a.id - b.id);
+        isSequentialMode = true;
+    } else if (year === 'bookmark') {
         const ids = bookmarkIds.ids || [];
         const texts = bookmarkIds.texts || [];
-        
-        // 고유 식별 번호가 일치하거나, 지문 본문 텍스트가 일치하는 자원을 모두 안전하게 수집합니다.
         availableQuestions = questionPool.filter(q => ids.includes(q.id) || texts.includes(q.text));
     } else if (year === 'all') {
         availableQuestions = [...questionPool];
@@ -210,22 +198,22 @@ app.post('/api/quiz/new', (req, res) => {
         availableQuestions = questionPool.filter(q => q.source.includes(year + "년"));
     }
 
-    // 2. 전체 대상 문항 중 안 푼 문제와 이미 푼 문제를 엄격하게 분리합니다.
-    const unsolvedList = availableQuestions.filter(q => !solvedIds.includes(q.id));
-    const solvedList = availableQuestions.filter(q => solvedIds.includes(q.id));
+    let selectedQuestions = [];
 
-    // 3. 각 그룹을 독립적으로 무작위 셔플링(Shuffle) 처리합니다.
-    const shuffledUnsolved = unsolvedList.sort(() => Math.random() - 0.5);
-    const shuffledSolved = solvedList.sort(() => Math.random() - 0.5);
+    if (isSequentialMode) {
+        selectedQuestions = availableQuestions;
+    } else {
+        const unsolvedList = availableQuestions.filter(q => !solvedIds.includes(q.id));
+        const solvedList = availableQuestions.filter(q => solvedIds.includes(q.id));
 
-    // 4. 안 푼 문제를 앞쪽에 우선 배치하고, 모자란 칸은 푼 문제로 뒤쪽에 이어 붙입니다.
-    const prioritizedCombined = [...shuffledUnsolved, ...shuffledSolved];
+        const shuffledUnsolved = unsolvedList.sort(() => Math.random() - 0.5);
+        const shuffledSolved = solvedList.sort(() => Math.random() - 0.5);
 
-    // 5. 총 출제 목표 수치를 결정합니다. (전체 년도는 30개, 특정 년도는 최대 30개 또는 해당 년도 가용 최대치)
-    const targetSize = year === 'all' ? 30 : Math.min(30, prioritizedCombined.length);
-    const selectedQuestions = prioritizedCombined.slice(0, targetSize);
+        const prioritizedCombined = [...shuffledUnsolved, ...shuffledSolved];
+        const targetSize = year === 'all' ? 30 : Math.min(30, prioritizedCombined.length);
+        selectedQuestions = prioritizedCombined.slice(0, targetSize);
+    }
 
-    // 6. 프론트엔드 엔진 양식 규격에 맞춰 안전하게 마운트 가공합니다.
     const secureClientQuestions = selectedQuestions.map(q => {
         let inputCount = 1;
         if (q.inputCount) {
@@ -233,7 +221,6 @@ app.post('/api/quiz/new', (req, res) => {
         } else if (q.answer.includes(" / ")) {
             inputCount = q.answer.split(" / ").length;
         } else if (q.answer.includes(",")) {
-            // 다중 정답 박스 자동 감지 기능을 유지합니다.
             inputCount = q.answer.split(",").length;
         }
         
@@ -249,7 +236,6 @@ app.post('/api/quiz/new', (req, res) => {
         };
     });
 
-    // 7. 고유 세션을 생성하여 로컬 메모리에 기록을 보존합니다.
     const newSession = {
         id: Date.now(),
         year: year,
@@ -258,7 +244,6 @@ app.post('/api/quiz/new', (req, res) => {
         userAnswers: {}
     };
     
-    // 이 라인을 추가하여 생성된 문제 세트를 서버 메모리에 바인딩합니다.
     quizSessions[newSession.id] = newSession;
     
     res.json({ sessionId: newSession.id, questions: secureClientQuestions });
@@ -267,13 +252,11 @@ app.post('/api/quiz/new', (req, res) => {
 app.post('/api/quiz/submit', (req, res) => {
     const { sessionId, userAnswers } = req.body;
     
-    // 메모리에 저장해 두었던 세션 객체를 세션 아이디로 정확히 찾아옵니다.
     const session = quizSessions[sessionId];
     if (!session) {
         return res.status(400).json({ error: "존재하지 않거나 만료된 세션 회차 정보입니다." });
     }
     
-    // 현재 세션의 문제 세트를 변수에 올바르게 대입합니다.
     const currentSessionQuestions = session.questions;
     
     let score = 0;
@@ -308,86 +291,34 @@ app.post('/api/quiz/submit', (req, res) => {
             score++;
         }
         
+        const combinedRealAnswer = realSlots.map(slot => slot.split("|")[0].trim()).join(slotDelimiter === " / " ? " / " : ", ");
+        
         return {
             id: q.id,
             source: q.source,
             text: q.text,
             view: q.view,
             userAnswer: userAnswer,
-            realAnswer: realAnswer.split(",")[0].split("|")[0].trim(), 
+            realAnswer: combinedRealAnswer,
             desc: q.desc,
             image: q.image || null,
             isRight: isRight
         };
     });
     
-    // 채점이 끝난 세션은 메모리 관리를 위해 삭제해 줍니다.
     delete quizSessions[sessionId];
     
     res.json({ score: score, total: currentSessionQuestions.length, reviewData: reviewData });
 });
 
-app.get('/api/history', (req, res) => {
-    const sessions = loadSessions();
-    const completed = sessions.filter(s => s.isCompleted);
-    
-    const summary = completed.map(s => {
-        const wrongDetails = s.wrongIds.map(wId => {
-            const q = questionPool.find(item => item.id === wId);
-            return {
-                source: q.source,
-                text: q.text,
-                view: q.view,
-                userAnswer: s.userAnswers[wId] || "미입력",
-                realAnswer: q.answer,
-                desc: q.desc
-            };
-        });
-        
-        return {
-            id: s.id,
-            date: s.date,
-            score: s.score,
-            total: s.questionIds.length,
-            wrongCount: s.wrongIds.length,
-            wrongs: wrongDetails
-        };
-    });
-    
-    res.json(summary);
-});
-
-app.use((err, req, res, next) => {
-    const timestamp = new Date().toLocaleString('ko-KR');
-    console.error(`\n[ERROR LOG] 발생 시점: ${timestamp}`);
-    console.error(`요청 URL: ${req.method} ${req.url}`);
-    console.error(`에러 메시지: ${err.message}`);
-    console.error(`에러 상세 스택:\n${err.stack}\n`);
-    
-    res.status(500).json({
-        error: "서버 내부에서 오류가 발생했습니다.",
-        message: err.message
-    });
-});
-
-// === [추가 사양] 정답 키워드로 기출문제 역추적 검색 API ===
 app.get('/api/quiz/search', (req, res) => {
-    const { answer } = req.query;
-    if (!answer) {
-        return res.json([]);
-    }
+    const query = req.query.answer;
+    if (!query) return res.json([]);
     
-    const cleanStr = text => text.replace(/\s+/g, '').toLowerCase();
-    const searchTarget = cleanStr(answer);
-    
-    // 전체 문제 은행(questionPool)에서 정답 본문에 검색어가 포함된 문항만 필터링합니다.
-    const matches = questionPool.filter(q => {
-        return cleanStr(q.answer).includes(searchTarget);
-    });
-    
-    res.json(matches);
+    const results = questionPool.filter(q => q.answer.includes(query) || q.answer.replace(/\s+/g, '').includes(query.replace(/\s+/g, '')));
+    res.json(results);
 });
 
-app.listen(PORT, () => {
-    console.log(`정처기 모바일 연동 앱 구동 성공 포트: ${PORT}`);
+app.listen(port, () => {
+    console.log(`서버가 포트 ${port}에서 가동 중입니다.`);
 });
