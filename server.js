@@ -325,7 +325,17 @@ app.get('/api/quiz/search', (req, res) => {
     const query = req.query.answer;
     if (!query) return res.json([]);
     
-    const results = questionPool.filter(q => q.answer.includes(query) || q.answer.replace(/\s+/g, '').includes(query.replace(/\s+/g, '')));
+    // 사용자의 검색어와 데이터베이스의 정답을 모두 소문자로 임시 변환하여 비교합니다.
+    const lowerQuery = query.toLowerCase();
+    
+    const results = questionPool.filter(q => {
+        const lowerAnswer = q.answer.toLowerCase();
+        
+        // 띄어쓰기가 있는 경우와 없는 경우를 모두 포함하여 대소문자 구분 없이 검사합니다.
+        return lowerAnswer.includes(lowerQuery) || 
+               lowerAnswer.replace(/\s+/g, '').includes(lowerQuery.replace(/\s+/g, ''));
+    });
+    
     res.json(results);
 });
 
