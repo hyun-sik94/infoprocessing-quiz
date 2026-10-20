@@ -223,7 +223,7 @@ function formatQuestionView(rawText) {
 
     // 줄바꿈이 없는 단순 한 줄 질문인 경우
     if (firstBreakIndex === -1) {
-        return `<div class="q-title-instruction">${highlightBlanks(cleanedText)}</div>`;
+        return `<div class="q-title-instruction" id="question-focus-target" tabindex="-1" style="outline: none;">${highlightBlanks(cleanedText)}</div>`;
     }
 
     let instruction = cleanedText.substring(0, firstBreakIndex).trim();
@@ -244,7 +244,7 @@ function formatQuestionView(rawText) {
     });
 
     return `
-        <div class="q-title-instruction">${escapeHtml(instruction)}</div>
+        <div class="q-title-instruction" id="question-focus-target" tabindex="-1" style="outline: none;">${escapeHtml(instruction)}</div>
         <div class="q-desc-card-box">${formattedBodyHtml}</div>
     `;
 }
@@ -1230,10 +1230,10 @@ function extractChoices(q) {
     let html = `
         <div class="choices-guide-wrap" style="margin-top: 10px; margin-bottom: 6px;">
             <div style="font-size: 11.5px; font-weight: bold; color: #2980b9; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                💡 터치하여 정답 입력
+                [빠른 정답 입력]
             </div>
-            <div class="choices-container" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-start;">
-    `;
+            <div class="choices-container" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-start;"> 
+        `;
     
     cleanItems.forEach(item => {
         const safeClickVal = item.replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -1285,19 +1285,18 @@ window.selectWrittenAnswer = function(qId, choiceNum) {
 };
 
 function focusInitialField(q) {
-    if (q.type === 'written') return;
+    // 문제 최상단 지시문으로 포커스 이동 (가상 키보드 팝업 방지 및 지문 우선 노출)
+    const questionTarget = document.getElementById("question-focus-target");
+    if (questionTarget) {
+        questionTarget.focus();
+    }
 
-    if (q.inputCount > 1) {
-        const firstInput = document.querySelector(`.multi-input-${q.id}[data-index="0"]`);
-        if (firstInput) {
-            firstInput.focus();
-            activeInputRef = firstInput;
-        }
-    } else {
-        const singleInput = document.getElementById("active-single-input");
-        if (singleInput) {
-            singleInput.focus();
-            activeInputRef = singleInput;
+    // [빠른 정답 입력] 터치 시 바로 들어갈 수 있도록 참조만 백그라운드에 보관
+    if (q.type !== 'written') {
+        if (q.inputCount > 1) {
+            activeInputRef = document.querySelector(`.multi-input-${q.id}[data-index="0"]`);
+        } else {
+            activeInputRef = document.getElementById("active-single-input");
         }
     }
 }
