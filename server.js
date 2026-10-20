@@ -10,7 +10,7 @@ app.use(express.static('public'));
 
 const db = new sqlite3.Database('./feedback.db');
 
-// DB 테이블 구조 생성 (필요시 컬럼 자동 추가 대응)
+// DB 테이블 구조 생성
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS feedbacks (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -90,8 +90,8 @@ app.post('/api/quiz/new', (req, res) => {
         isSequentialMode = true;
         quizLabel = "전체 순차 풀이";
     } else if (year === 'bookmark') {
-        const ids = bookmarkIds.ids || [];
-        const texts = bookmarkIds.texts || [];
+        const ids = (bookmarkIds && bookmarkIds.ids) || [];
+        const texts = (bookmarkIds && bookmarkIds.texts) || [];
         availableQuestions = targetPool.filter(q => ids.includes(q.id) || texts.includes(q.text));
         quizLabel = "즐겨찾기 풀이";
     } else if (year === 'cbt') {
@@ -312,17 +312,25 @@ app.post('/api/quiz/submit', (req, res) => {
 });
 
 app.get('/api/quiz/search', (req, res) => {
-    const query = req.query.answer;
+    const query = (req.query.answer || '').trim();
     const examType = req.query.type || 'practical';
     if (!query) return sendSecurePayload(res, []);
-    
+
     const targetPool = (examType === 'written') ? writtenQuestionPool : practicalQuestionPool;
-    const results = targetPool.filter(q => q.answer && (q.answer.includes(query) || q.answer.replace(/\s+/g, '').includes(query.replace(/\s+/g, ''))));
-    
+    const lowerQuery = query.toLowerCase();
+    const compactQuery = lowerQuery.replace(/\s+/g, '');
+
+    const results = targetPool.filter(q => {
+        if (!q.answer) return false;
+        const lowerAnswer = q.answer.toLowerCase();
+        const compactAnswer = lowerAnswer.replace(/\s+/g, '');
+        return lowerAnswer.includes(lowerQuery) || compactAnswer.includes(compactQuery);
+    });
+
     sendSecurePayload(res, results);
 });
 
-// 1. 사용자 제보 등록 (하루 10회 제한 및 밴 체크)
+// 사용자 제보 등록 (하루 10회 제한 및 밴 체크)
 app.post('/api/feedback', (req, res) => {
     const { appMode, message, fingerprint } = req.body;
     const userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
@@ -364,7 +372,7 @@ app.post('/api/feedback', (req, res) => {
     });
 });
 
-// 2. 관리자 제보 목록 조회 (모던 UI 및 페이징)
+// 관리자 제보 목록 조회
 app.get('/api/feedback/list', (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = 10;
@@ -390,9 +398,6 @@ app.get('/api/feedback/list', (req, res) => {
                         const isIpBanned = bannedSet.has(row.user_ip);
                         const isFpBanned = bannedSet.has(row.fingerprint);
                         const isBanned = isIpBanned || isFpBanned;
-                        
-                        // 안전한 서브스링 처리 추가
-                        const safeFp = (row.fingerprint || 'unknown').substring(0, 12);
 
                         itemsHtml += `
                             <div class="feedback-card ${isBanned ? 'banned-card' : ''}">
