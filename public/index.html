@@ -4,21 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>정보처리기사 기출문제 풀이</title>
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
 <div class="phone-wrapper">
-    <div class="header">
+    <div class="header" style="display:none;">
         <span class="header-btn" onclick="exitToDashboard()">Back</span>
         <span id="header-center-title">기출 메인</span>
         <span class="header-btn" style="visibility:hidden;">Info</span>
     </div>
 
     <div class="body-container" id="view-renderer">
-        </div>
+        <!-- 자바스크립트가 모드 선택 화면을 먼저 렌더링합니다 -->
+    </div>
 
-    <div class="tab-fixed-bar">
+    <div class="tab-fixed-bar" style="display:none;">
         <div class="tab-unit active" id="tab-all" onclick="switchMainTab('all')">
             <div class="tab-icon-img">📋</div>
             <div>All</div>
@@ -27,13 +28,21 @@
             <div class="tab-icon-img">⭐</div>
             <div>My</div>
         </div>
-        <div class="tab-unit" onclick="alert('정보처리기사 실전형 맞춤 기출 컴포넌트입니다.')">
-            <div class="tab-icon-img">ℹ️</div>
-            <div>Info</div>
+        <div class="tab-unit" id="tab-analysis" onclick="switchMainTab('analysis')">
+            <div class="tab-icon-img">📊</div>
+            <div>분석</div>
+        </div>
+        <div class="tab-unit" onclick="window.openFeedbackModal()">
+            <div class="tab-icon-img">💡</div>
+            <div>제보하기</div>
+        </div>
+        <div class="tab-unit" id="tab-switch" onclick="switchAppMode()">
+            <div class="tab-icon-img">🔄</div>
+            <div id="tab-switch-text">모드 전환</div>
         </div>
     </div>
 </div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=20261020_02"></script>
 </body>
 </html>
