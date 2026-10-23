@@ -1,0 +1,23 @@
+name: Auto Deploy to OCI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remote SSH deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd /home/ubuntu/infoprocessing-quiz
+            git pull origin main
+            npm install --omit=dev
+            pm2 reload quiz-app || pm2 restart quiz-app
+            pm2 save
