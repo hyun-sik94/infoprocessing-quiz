@@ -17,19 +17,39 @@ let remainingTimeSeconds = 0;
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
 const HISTORY_KEY = "정처기_이력_목록";
 
+// 사용자 활동 로그 비동기 전송 함수 (SQLite 연동)
+function logUserAction(action, detail = {}) {
+    try {
+        const payload = JSON.stringify({
+            fingerprint: generateDeviceFingerprint(),
+            action: action,
+            detail: detail
+        });
+
+        if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon('/api/log', blob);
+        } else {
+            fetch('/api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            }).catch(() => {});
+        }
+    } catch (e) {}
+}
+
 function formatViewHtml(view) {
     if (!view) return "";
 
-    // 1. 실제 행(<tr>)을 포함한 완성된 HTML 표이거나 pre/code 태그인 경우만 보호 처리
     if (/<table[^>]*>[\s\S]*<tr/i.test(view) || /<(pre|code|svg)[^>]*>/i.test(view)) {
         return view.replace(/<(\/?[SRAB]|보기)>/gi, '[$1]');
     }
 
     let text = escapeHtml(view);
 
-    // 2. <보기>, [보기], (보기), [디자인 패턴 목록] 등 모든 보기 영역 완전 분리 (1차 방어)
     let bogiHtml = "";
-    let bogiRegex = /(?:&lt;|<|\[|\()\s*(?:보기\vert{}디자인\s*패턴\s*목록\vert{}보기\s*목록)\s*(?:&gt;\vert{}>\vert{}\]\vert{}\))?:?([\s\S]*)/i;
+    let bogiRegex = /(?:&lt;|<|\[|\()\s*(?:보기|디자인\s*패턴\s*목록|보기\s*목록)\s*(?:&gt;|>|\]|\))?:?([\s\S]*)/i;
     let bogiMatch = text.match(bogiRegex);
 
     if (bogiMatch) {
@@ -49,7 +69,6 @@ function formatViewHtml(view) {
         }
     }
 
-    // 3. 본문 블록 분리 및 테이블/설명문 처리
     let blocks = text.split(/\n\s*\n/);
     let resultHtml = "";
 
@@ -57,15 +76,13 @@ function formatViewHtml(view) {
         let lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         if (lines.length === 0) return;
 
-        // 테이블명 또는 캡션 라인 감지 ([R], <회원> 등)
         let caption = "";
         let firstLine = lines[0];
-        if (/^(&lt;|\[\vert{}<)[^>\]]+(&gt;|\]|>)(.*)$/.test(firstLine) && !firstLine.includes('|')) {
+        if (/^(&lt;|\[|<)[^>\]]+(&gt;|\]|>)(.*)$/.test(firstLine) && !firstLine.includes('|')) {
             caption = firstLine;
             lines = lines.slice(1);
         }
 
-        // [2차 방어막] 만약 캡션에 '보기'가 포함되어 있다면 절대 표(Table)로 만들지 않고 보기 칩으로 즉시 변환
         if (/보기|목록/i.test(caption)) {
             let remainRaw = lines.join('\n');
             let bogiItems = remainRaw.split(/[\n\|]|\s+\/\s+/).map(s => s.trim().replace(/^[•·\-\*]\s*/, '')).filter(s => s.length > 0);
@@ -86,7 +103,6 @@ function formatViewHtml(view) {
 
         let blockContent = lines.join('\n');
 
-        // 소스코드 및 순서도는 표 변환 방지
         let isSourceCode = /int\s+Main|#include|public\s+class|class\s+\w+|void\s+\w+|return\s+\d+|while\s*\(|if\s*\(/i.test(blockContent);
         let isFlowChart = lines.some(l => l.includes('->') || l.includes('→')) && lines.some(l => l.includes('[') || l.includes('<'));
 
@@ -95,7 +111,6 @@ function formatViewHtml(view) {
             return;
         }
 
-        // 실제 데이터베이스 표 판별
         let hasPipe = lines.some(l => l.includes('|'));
 
         if (hasPipe) {
@@ -116,7 +131,6 @@ function formatViewHtml(view) {
 
             resultHtml += buildHtmlTable(rows);
         } else {
-            // 단일 열 테이블 감지
             let isSingleColTable = caption && lines.length >= 2 && lines.every(l => l.length <= 25 && !l.includes('.'));
             if (isSingleColTable) {
                 let rows = lines.map(l => [l]);
@@ -130,7 +144,6 @@ function formatViewHtml(view) {
     return resultHtml + bogiHtml;
 }
 
-// 파이프 텍스트 라인들을 HTML 테이블 구조로 자동 변환하는 함수
 function buildHtmlTable(rows) {
     if (!rows || rows.length === 0) return "";
     let html = '<div class="quiz-table-wrap"><table class="quiz-table">';
@@ -175,7 +188,6 @@ function buildHtmlTable(rows) {
                 cellContent = cellStr.replace(/\n/g, '<br>');
             }
 
-            // 1열이 순수 괄호 빈칸 기호(( ① ), ( 1 ) 등)인지 판별
             let isPureSymbol = /^(\(\s*[①-⑮\dㄱ-ㅎa-zA-Z]?\s*\)|[①-⑮])$/.test(cellStr.trim());
 
             let alignClass = 'col-content';
@@ -207,10 +219,8 @@ function buildHtmlTable(rows) {
 function formatQuestionView(rawText) {
     if (!rawText) return "";
 
-    // 1. 불필요한 배점 표기 제거 (예: (5점), (10점))
-    let cleanedText = rawText.replace(/\s*\(\s*\d+점\s*\)/g, "");
+    let cleanedText = String(rawText).replace(/\s*\(\s*\d+점\s*\)/g, "");
 
-    // 2. 식별자 뒤 괄호는 제외하고, 순수 빈칸 및 기출용 원문자만 하이라이트 치환
     function highlightBlanks(str) {
         return escapeHtml(str).replace(/(?<![a-zA-Z0-9_])\(\s*([①-⑮㉠-㉾ㄱ-ㅎ]?)\s*\)/g, function(match, p1) {
             let inner = p1.trim() ? p1.trim() : "&nbsp;&nbsp;";
@@ -218,10 +228,8 @@ function formatQuestionView(rawText) {
         });
     }
 
-    // 3. 첫 번째 줄바꿈(\n)을 찾아 지시문과 본문 분리
     let firstBreakIndex = cleanedText.indexOf("\n");
 
-    // 줄바꿈이 없는 단순 한 줄 질문인 경우
     if (firstBreakIndex === -1) {
         return `<div class="q-title-instruction" id="question-focus-target" tabindex="-1" style="outline: none;">${highlightBlanks(cleanedText)}</div>`;
     }
@@ -229,7 +237,6 @@ function formatQuestionView(rawText) {
     let instruction = cleanedText.substring(0, firstBreakIndex).trim();
     let bodyText = cleanedText.substring(firstBreakIndex + 1).trim();
 
-    // 4. 본문 라인별 처리 (불릿 기호 및 줄글 분리 + 빈칸 하이라이트)
     let bodyLines = bodyText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
     let formattedBodyHtml = "";
 
@@ -250,8 +257,8 @@ function formatQuestionView(rawText) {
 }
 
 function escapeHtml(str) {
-    if (!str) return "";
-    return str
+    if (str === null || str === undefined) return "";
+    return String(str)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -291,6 +298,105 @@ function deleteHistoryLog(logId) {
         localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
         fetchHistoryLogs();
     }
+}
+
+// 회차별 최근 시험 점수 조회 헬퍼
+function getRecentExamInfo(matchKeyword) {
+    const logs = getHistoryLogs().filter(log => log.type === currentAppMode);
+    const matched = [...logs].reverse().find(log => (log.quizLabel && log.quizLabel.includes(matchKeyword)));
+    if (matched) {
+        const isPass = (matched.score / matched.total >= 0.6);
+        return `${matched.score}점 (${isPass ? '합격' : '불합격'})`;
+    }
+    return "미응시";
+}
+
+// 학습 데이터 백업 (JSON 파일 다운로드)
+function exportBackupData() {
+    logUserAction("BACKUP_DATA");
+    const bookmarks = getBookmarkedQuestions();
+    const history = getHistoryLogs();
+    const seqRaw = localStorage.getItem("정처기_순차풀이_중간저장");
+    const sequentialState = seqRaw ? JSON.parse(seqRaw) : null;
+
+    if (bookmarks.length === 0 && history.length === 0 && !sequentialState) {
+        alert("백업할 학습 이력이나 즐겨찾기 데이터가 없습니다.");
+        return;
+    }
+
+    const backupPayload = {
+        app: "정처기 스마트 기출 풀이",
+        version: "2026.10",
+        exportedAt: new Date().toLocaleString('ko-KR'),
+        bookmarks: bookmarks,
+        history: history,
+        sequentialState: sequentialState
+    };
+
+    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+
+    a.href = url;
+    a.download = `정처기_학습데이터_백업_${yyyy}${mm}${dd}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function triggerRestoreFileInput() {
+    const fileInput = document.getElementById("backup-file-input");
+    if (fileInput) {
+        fileInput.value = "";
+        fileInput.click();
+    }
+}
+
+function importBackupData(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data || (!Array.isArray(data.bookmarks) && !Array.isArray(data.history))) {
+                alert("올바른 정처기 학습 백업 파일 형식이 아닙니다.");
+                return;
+            }
+
+            const bookmarkCount = Array.isArray(data.bookmarks) ? data.bookmarks.length : 0;
+            const historyCount = Array.isArray(data.history) ? data.history.length : 0;
+
+            const confirmMsg = `백업 파일 정보를 확인했습니다.\n- 즐겨찾기: ${bookmarkCount}건\n- 풀이 이력: ${historyCount}건\n\n현재 기기의 데이터를 백업 파일 내용으로 복원하시겠습니까?`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            if (Array.isArray(data.bookmarks)) {
+                localStorage.setItem(BOOKMARK_KEY, JSON.stringify(data.bookmarks));
+            }
+            if (Array.isArray(data.history)) {
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+            }
+            if (data.sequentialState) {
+                localStorage.setItem("정처기_순차풀이_중간저장", JSON.stringify(data.sequentialState));
+            }
+
+            logUserAction("RESTORE_DATA", { bookmarks: bookmarkCount, history: historyCount });
+            alert("학습 데이터가 성공적으로 복원되었습니다.");
+            loadMainDashboard();
+        } catch (err) {
+            console.error("복원 파싱 에러:", err);
+            alert("파일을 읽고 복원하는 중 오류가 발생했습니다: " + err.message);
+        }
+    };
+    reader.readAsText(file, "utf-8");
 }
 
 function toggleBookmarkStatus(questionObj) {
@@ -404,6 +510,7 @@ function switchAppMode() {
     history.replaceState(null, '', window.location.pathname);
     
     currentAppMode = (currentAppMode === 'practical') ? 'written' : 'practical';
+    logUserAction("MODE_SWITCH", { newMode: currentAppMode });
     globalTabState = 'all';
     
     updateBottomTabUI();
@@ -412,6 +519,7 @@ function switchAppMode() {
 
 function setAppMode(mode) {
     currentAppMode = mode;
+    logUserAction("MODE_SELECT", { mode: mode });
     globalTabState = 'all';
     updateBottomTabUI();
     loadMainDashboard();
@@ -422,6 +530,12 @@ function loadModeSelectionScreen() {
     history.replaceState(null, '', window.location.pathname);
     document.querySelector(".tab-fixed-bar").style.display = "none";
     document.querySelector(".header").style.display = "none";
+    currentAppMode = null;
+    activeSessionId = null;
+    activeSessionYear = null;
+    activeSessionType = null;
+    
+    logUserAction("MAIN_PAGE_VIEW");
     
     const container = document.getElementById("view-renderer");
     container.innerHTML = `
@@ -455,6 +569,17 @@ function loadModeSelectionScreen() {
                     <div class="card-arrow">➔</div>
                 </div>
             </div>
+
+            <footer class="app-footer">
+                <div class="footer-inner">
+                    <p class="brand-title">MakeSoft</p>
+                    <p class="disclaimer-text">
+                        본 서비스에서 제공하는 문제는 수험생 복원 데이터 및 출제 기준을 바탕으로 학습 편의를 위해 독자적으로 재구성된 자료입니다. 
+                        공식 출제기관(Q-Net 등)의 원문 시험지가 아니며, 실제 출제 문항과 일부 문장 표현에 차이가 있을 수 있습니다.
+                    </p>
+                    <p class="copyright-text">© 2026 MakeSoft. All rights reserved.</p>
+                </div>
+            </footer>
         </div>
     `;
 }
@@ -490,7 +615,7 @@ function renderAnalysisTab() {
     
     if (logs.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center; padding-top:60px; color:#95a5a6;">
+            <div style="text-align:center; padding-top:60px; color:#94a3b8;">
                 <div style="font-size:45px; margin-bottom:15px;">📊</div>
                 <p style="font-size:14px;">저장된 풀이 기록이 없습니다.<br>문제 풀이 후 성과 분석을 확인해 보세요!</p>
             </div>
@@ -506,9 +631,10 @@ function renderAnalysisTab() {
     let subjectStatsMap = {};
 
     logs.forEach(log => {
+        const qCount = log.total || (log.questions ? log.questions.length : 0);
         totalScoreSum += log.score;
-        totalQuestionSum += log.total;
-        if ((log.score / log.total) >= 0.6) {
+        totalQuestionSum += qCount;
+        if (log.score >= 60) {
             passCount++;
         }
 
@@ -533,13 +659,13 @@ function renderAnalysisTab() {
         }
     });
 
-    let avgPercent = Math.round((totalScoreSum / totalQuestionSum) * 100);
-    let passPercent = Math.round((passCount / totalExamCount) * 100);
+    let avgPercent = totalExamCount > 0 ? Math.round(totalScoreSum / totalExamCount) : 0;
+    let passPercent = totalExamCount > 0 ? Math.round((passCount / totalExamCount) * 100) : 0;
 
     let subjectCardsHtml = "";
     Object.keys(subjectStatsMap).forEach(subjectName => {
         const stat = subjectStatsMap[subjectName];
-        const subjectPercent = Math.round((stat.correct / stat.total) * 100);
+        const subjectPercent = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
         
         let wrongList = Object.values(stat.wrongQuestions).sort((a, b) => b.count - a.count).slice(0, 3);
         
@@ -606,6 +732,7 @@ function renderAnalysisTab() {
     container.scrollTop = 0;
 }
 
+// 대시보드 렌더러 (실기: 연도별 선택 적용 / 문항수 제거)
 function loadMainDashboard() {
     clearInterval(quizTimerInterval);
     history.replaceState(null, '', window.location.pathname);
@@ -627,70 +754,165 @@ function loadMainDashboard() {
     document.getElementById("header-center-title").innerText = isWritten ? "필기 기출 메인" : "실기 기출 메인";
     const container = document.getElementById("view-renderer");
 
-    let dashboardHtml = `
-        <div style="text-align:center; padding-top:15px;">
-            <div style="font-size:45px; margin-bottom:5px;">${isWritten ? '📝' : '💻'}</div>
-            <h3 style="color:#2c3e50; margin-bottom:5px;">정처기 ${isWritten ? '필기' : '실기'} 기출 풀이</h3>
-            <p style="font-size:13px; color:#7f8c8d; line-height:1.6; margin-bottom:15px; padding:0 15px;">
-                원하는 학습 모드와 회차를 선택해 주세요.
-            </p>
+    const searchSectionTitle = isWritten ? "정답/해설에서 문제찾기" : "문제 / 정답으로 문제찾기";
+    const selectOptionsHtml = isWritten ? `
+        <option value="answer">정답</option>
+        <option value="desc">해설</option>
+    ` : `
+        <option value="answer">정답</option>
+        <option value="text">문제</option>
     `;
+    const defaultPlaceholder = isWritten ? "정답 용어/문구 입력" : "기억나는 정답 용어 입력";
 
-    if (isWritten) {
-        dashboardHtml += `
-            <div style="margin-bottom: 15px; padding: 0 30px;">
-                <select id="quiz-year-select" style="width:100%; padding:14px; font-size:15px; border:2px solid #3498db; border-radius:8px; outline:none; color:#2c3e50; font-weight:bold; background-color:#ebf5ff;">
-                    <option value="cbt">필기 실전 모의고사 (랜덤 100제)</option>
-                    <option value="2025">2025년도 필기 기출</option>
-                    <option value="2024">2024년도 필기 기출</option>
-                    <option value="sequential">필기 전체 문항 순서대로 풀기</option>
+    let dashboardHtml = `
+        <div class="dashboard-util-bar">
+            <span class="input-label-text">${searchSectionTitle}</span>
+            <div class="search-input-group">
+                <select id="search-field-select" class="search-select" onchange="updateSearchPlaceholder()">
+                    ${selectOptionsHtml}
                 </select>
+                <input type="text" id="search-answer-input" class="search-input" placeholder="${defaultPlaceholder}" onkeypress="handleSearchKeyPress(event)">
+                <button class="search-btn" onclick="searchQuestionByAnswer()">검색</button>
             </div>
-            <button class="nav-control-btn" style="width:85%; background-color:#3498db; margin-bottom: 20px;" onclick="triggerNewQuizSession()">
-                선택 회차 문제풀기 시작
-            </button>
-        `;
-    } else {
-        dashboardHtml += `
-            <div style="margin-bottom: 15px; padding: 0 30px;">
-                <select id="quiz-year-select" style="width:100%; padding:14px; font-size:15px; border:2px solid #2ecc71; border-radius:8px; outline:none; color:#2c3e50; font-weight:bold; background-color:#eafaf1;">
-                    <option value="all">실기 무작위 30문항 풀기</option>
-                    <option value="2026">2026년도 실기 기출</option>
-                    <option value="2025">2025년도 실기 기출</option>
-                    <option value="2024">2024년도 실기 기출</option>
-                    <option value="2023">2023년도 실기 기출</option>
-                    <option value="2022">2022년도 실기 기출</option>
-                    <option value="2021">2021년도 실기 기출</option>
-                    <option value="sequential">실기 전체 문항 순서대로 풀기</option>
-                </select>
-            </div>
-            <button class="nav-control-btn" style="width:85%; background-color:#2ecc71; margin-bottom: 20px;" onclick="triggerNewQuizSession()">
-                선택 회차 문제풀기 시작
-            </button>
-        `;
-    }
-
-    dashboardHtml += `
-            <div style="border-top: 1px dashed #e2e8f0; padding-top: 20px; margin: 0 30px 20px 30px; text-align: left;">
-                <span class="input-label-text" style="margin-bottom: 6px;">정답으로 문제 찾기</span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="search-answer-input" class="input-answer" placeholder="기억나는 정답 용어 입력" style="margin-bottom: 0; flex: 1;" onkeypress="handleSearchKeyPress(event)">
-                    <button class="nav-control-btn" style="padding: 0 16px; width: auto; flex-shrink: 0; background-color: #34495e; height: 48px; border-radius: 8px;" onclick="searchQuestionByAnswer()">검색</button>
-                </div>
+            <div class="backup-btn-group">
+                <button class="util-sub-btn" onclick="exportBackupData()">💾 데이터 백업</button>
+                <button class="util-sub-btn" onclick="triggerRestoreFileInput()">📂 데이터 복원</button>
+                <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="importBackupData(event)">
             </div>
         </div>
-        
+
+        <div class="feed-container">
+            <!-- 카드 1: 실전 모의고사 (랜덤 추출) -->
+            <div class="feed-card">
+                <div class="feed-card-header">
+                    <span class="feed-badge">${isWritten ? '실전 CBT 100제' : '랜덤 모의 30제'}</span>
+                    <span class="feed-status-tag">${isWritten ? '전과목 무작위' : '핵심 30문항'}</span>
+                </div>
+                <div class="feed-card-main">
+                    <div class="feed-thumb ${isWritten ? 'written' : 'practical'}">${isWritten ? '📝' : '💻'}</div>
+                    <div class="feed-info">
+                        <div class="feed-title">${isWritten ? '필기 실전 모의고사 (100제)' : '실기 무작위 모의고사 (30제)'}</div>
+                        <div class="feed-desc">${isWritten ? '전체 필기 기출문제에서 100문항 무작위 추출' : '전체 실기 기출에서 무작위 30문항 추출'}</div>
+                    </div>
+                </div>
+                <button class="card-action-btn" onclick="triggerNewQuizSession('${isWritten ? 'cbt' : 'all'}')">랜덤 모의고사 시작 ➔</button>
+            </div>
+
+            <!-- 카드 2: 기출문제 선택 풀이 (실기: 연도별 선택) -->
+            <div class="feed-card">
+                <div class="feed-card-header">
+                    <span class="feed-badge blue">${isWritten ? '회차별 기출' : '연도별 기출'}</span>
+                    <span class="feed-status-tag">선택 풀이</span>
+                </div>
+                <div class="feed-card-main">
+                    <div class="feed-thumb ${isWritten ? 'written' : 'practical'}">🎯</div>
+                    <div class="feed-info">
+                        <div class="feed-title">${isWritten ? '필기 회차별 기출문제 풀이' : '실기 연도별 기출문제 풀이'}</div>
+                        <div class="feed-desc">${isWritten ? '학습을 원하는 연도 및 회차를 선택해 주세요.' : '학습을 원하는 시험 연도를 선택해 주세요.'}</div>
+                    </div>
+                </div>
+                <select id="quiz-round-select" class="feed-select">
+                    <option value="">${isWritten ? '데이터베이스에서 회차를 불러오는 중...' : '데이터베이스에서 연도를 불러오는 중...'}</option>
+                </select>
+                <button class="card-action-btn-green" onclick="startSelectedRoundQuiz()">${isWritten ? '선택 회차 문제풀기 시작 ➔' : '선택 연도 문제풀기 시작 ➔'}</button>
+            </div>
+
+            <!-- 카드 3: 전체 문항 순서대로 풀기 (누적 정복 모드) -->
+            <div class="feed-card">
+                <div class="feed-card-header">
+                    <span class="feed-badge green">누적 정복</span>
+                    <span class="feed-status-tag">이어풀기 지원</span>
+                </div>
+                <div class="feed-card-main">
+                    <div class="feed-thumb ${isWritten ? 'written' : 'practical'}">🔁</div>
+                    <div class="feed-info">
+                        <div class="feed-title">${isWritten ? '필기' : '실기'} 전체 문항 순서대로 풀기</div>
+                        <div class="feed-desc">1번부터 차례대로 정복하는 코스 (진행 상황 자동 저장)</div>
+                    </div>
+                </div>
+                <button class="card-action-btn secondary" onclick="triggerNewQuizSession('sequential')">순차 풀이 시작/이어풀기 ➔</button>
+            </div>
+        </div>
+
         <div id="dashboard-dynamic-area">
-            <div onclick="toggleHistoryAreaVisibility()" style="border-left:4px solid #34495e; padding-left:8px; font-weight:bold; color:#34495e; font-size:15px; margin-bottom:15px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+            <div onclick="toggleHistoryAreaVisibility()" style="border-left:4px solid #0f172a; padding-left:8px; font-weight:bold; color:#0f172a; font-size:14.5px; margin-bottom:12px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
                 <span>회차별 풀이 이력 및 오답확인</span>
-                <span id="history-toggle-arrow" style="font-size: 12px; margin-right: 10px; color: #7f8c8d;">▼</span>
+                <span id="history-toggle-arrow" style="font-size: 12px; margin-right: 6px; color: #64748b;">▼</span>
             </div>
             <div id="history-ajax-area">이력을 조회하는 중입니다...</div>
         </div>
     `;
-    
+
     container.innerHTML = dashboardHtml;
     fetchHistoryLogs();
+    populateRoundSelectOptions();
+}
+
+// 실기는 문항수 없이 연도만 옵션으로 생성
+async function populateRoundSelectOptions() {
+    const selectElem = document.getElementById("quiz-round-select");
+    if (!selectElem) return;
+
+    const isWritten = (currentAppMode === 'written');
+
+    try {
+        const res = await fetch(`/api/quiz/rounds?type=${currentAppMode}`);
+        const items = await res.json();
+        
+        if (items && items.length > 0) {
+            if (isWritten) {
+                // 필기: 회차별 + 문항수 표시
+                selectElem.innerHTML = items.map(r => 
+                    `<option value="${r.name}">${r.name}</option>`
+                ).join('');
+            } else {
+                // 실기: 문항수 없이 연도만 표시
+                selectElem.innerHTML = items.map(r => 
+                    `<option value="${r.name}">${r.name} 기출문제</option>`
+                ).join('');
+            }
+        } else {
+            selectElem.innerHTML = `<option value="">등록된 기출 데이터가 없습니다</option>`;
+        }
+    } catch (e) {
+        console.error("목록 로드 실패:", e);
+        selectElem.innerHTML = `<option value="">목록을 불러오지 못했습니다</option>`;
+    }
+}
+
+// 선택된 연도/회차 기출문제 풀이 시작
+function startSelectedRoundQuiz() {
+    const selectElem = document.getElementById("quiz-round-select");
+    const selectedItem = selectElem ? selectElem.value : "";
+    const isWritten = (currentAppMode === 'written');
+    if (!selectedItem) {
+        alert(isWritten ? "풀이할 회차를 선택해 주세요." : "풀이할 연도를 선택해 주세요.");
+        return;
+    }
+    triggerNewQuizSession(selectedItem);
+}
+
+function updateSearchPlaceholder() {
+    const selectElem = document.getElementById("search-field-select");
+    const inputElem = document.getElementById("search-answer-input");
+    if (!selectElem || !inputElem) return;
+
+    const val = selectElem.value;
+    const isWritten = (currentAppMode === 'written');
+
+    if (isWritten) {
+        if (val === 'answer') {
+            inputElem.placeholder = "정답 용어/문구 입력";
+        } else if (val === 'desc') {
+            inputElem.placeholder = "해설 속 키워드 입력";
+        }
+    } else {
+        if (val === 'answer') {
+            inputElem.placeholder = "기억나는 정답 용어 입력";
+        } else if (val === 'text') {
+            inputElem.placeholder = "문제 지문 속 키워드 입력";
+        }
+    }
 }
 
 function toggleHistoryAreaVisibility() {
@@ -709,17 +931,24 @@ function toggleHistoryAreaVisibility() {
 }
 
 async function searchQuestionByAnswer() {
-    const query = document.getElementById("search-answer-input").value.trim();
+    const inputElem = document.getElementById("search-answer-input");
+    const selectElem = document.getElementById("search-field-select");
+    
+    const query = inputElem ? inputElem.value.trim() : "";
+    const field = selectElem ? selectElem.value : "answer";
+
     if (!query) {
-        alert("검색할 정답 키워드를 입력해 주세요.");
+        const fieldName = (field === 'desc') ? '해설' : (field === 'text' ? '문제 지문' : '정답');
+        alert(`검색할 ${fieldName} 키워드를 입력해 주세요.`);
         return;
     }
     
     try {
-        const res = await fetch(`/api/quiz/search?answer=${encodeURIComponent(query)}&type=${currentAppMode}`);
+        const res = await fetch(`/api/quiz/search?query=${encodeURIComponent(query)}&answer=${encodeURIComponent(query)}&type=${currentAppMode}&field=${field}`);
         const rawData = await res.json();
         const data = parseSecurePayload(rawData);
-        renderSearchResults(data, query);
+        logUserAction("SEARCH", { mode: currentAppMode, field: field, query: query, resultCount: (data && data.length) || 0 });
+        renderSearchResults(data, query, field);
     } catch(e) {
         console.error("검색 오류:", e);
         alert(`검색 연동 중 에러가 발생했습니다.\n에러 원인: ${e.message}`);
@@ -732,19 +961,27 @@ function handleSearchKeyPress(e) {
     }
 }
 
-function renderSearchResults(results, query) {
+function renderSearchResults(results, query, field) {
     const dynamicArea = document.getElementById("dashboard-dynamic-area");
     if (!dynamicArea) return;
     
+    const isWritten = (currentAppMode === 'written');
+    let fieldTitle = "정답";
+    if (isWritten) {
+        fieldTitle = (field === 'desc') ? "해설" : "정답";
+    } else {
+        fieldTitle = (field === 'text') ? "문제" : "정답";
+    }
+
     let html = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 15px; border-left: 4px solid #3498db; padding-left: 8px;">
-            <span style="font-weight: bold; color: #2c3e50; font-size: 15px;">'${query}' 검색 결과 (총 ${results.length}건)</span>
-            <span style="font-size: 12px; color: #3498db; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="loadMainDashboard()">이력 목록으로 돌아가기</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px; border-left: 4px solid #0284c7; padding-left: 8px;">
+            <span style="font-weight: bold; color: #0f172a; font-size: 14px;">'${escapeHtml(query)}' ${fieldTitle} 검색 (총 ${results.length}건)</span>
+            <span style="font-size: 12px; color: #0284c7; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="loadMainDashboard()">이력 목록으로 복귀</span>
         </div>
     `;
     
     if (results.length === 0) {
-        html += `<div style="text-align: center; color: #95a5a6; font-size: 14px; padding: 40px 0;">해당 정답을 가진 기출문제를 찾을 수 없습니다.</div>`;
+        html += `<div style="text-align: center; color: #94a3b8; font-size: 13.5px; padding: 30px 0;">해당 ${fieldTitle}을(를) 포함하는 기출문제를 찾을 수 없습니다.</div>`;
     } else {
         results.forEach((r, idx) => {
             const isBookmarked = isQuestionBookmarked(r.text);
@@ -752,21 +989,31 @@ function renderSearchResults(results, query) {
             const modeText = r.type === 'written' ? '[필기]' : '[실기]';
             let cleanDesc = r.desc ? r.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
             
+            let answerDisplay = escapeHtml(r.answer);
+            if (r.type === 'written' && r.choices && Array.isArray(r.choices)) {
+                const ansIdx = parseInt(r.answer, 10) - 1;
+                if (r.choices[ansIdx]) {
+                    answerDisplay = `${r.answer}번. ${escapeHtml(r.choices[ansIdx])}`;
+                }
+            }
+            
             html += `
-                <div class="log-box-card" style="border-top-color: #3498db;">
+                <div class="log-box-card" style="border-top-color: #0284c7;">
                     <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
                     <div class="source-tag">${modeText} ${r.source}</div>
-                    <div class="question-title" style="font-size: 14px; padding-right: 25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">문제: ${escapeHtml(r.text)}</div>
-                    ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                    <div class="question-title" style="font-size: 13.5px; padding-right: 25px; white-space: pre-wrap; line-height: 1.55; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
+                    ${r.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
-                    <div style="font-size: 13px; color: #27ae60; font-weight: bold; margin-top: 5px;">출제 정답: ${r.answer}</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                    <div style="font-size: 13px; color: #16a34a; font-weight: bold; margin-top: 5px;">출제 정답: ${answerDisplay}</div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
                 </div>
             `;
         });
     }
     
     window.searchCurrentResults = results;
+    window.lastSearchQuery = query;
+    window.lastSearchField = field;
     dynamicArea.innerHTML = html;
 }
 
@@ -784,8 +1031,7 @@ function toggleBookmarkStatusFromSearch(index) {
             desc: q.desc,
             image: q.image || null
         });
-        const query = document.getElementById("search-answer-input").value.trim();
-        renderSearchResults(window.searchCurrentResults, query);
+        renderSearchResults(window.searchCurrentResults, window.lastSearchQuery || "", window.lastSearchField || "answer");
     }
 }
 
@@ -798,7 +1044,7 @@ function renderMyBookmarksTab() {
     
     if (bookmarks.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center; padding-top:60px; color:#95a5a6;">
+            <div style="text-align:center; padding-top:60px; color:#94a3b8;">
                 <div style="font-size:45px; margin-bottom:15px;">⭐</div>
                 <p style="font-size:14px;">현재 모드에 보관된 즐겨찾기가 없습니다.</p>
             </div>
@@ -807,11 +1053,10 @@ function renderMyBookmarksTab() {
     }
     
     const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
-    const bookmarkTexts = bookmarks.map(b => b.text);
     let startButtonHtml = "";
     if (bookmarkIds.length > 0) {
         startButtonHtml = `
-            <button class="nav-control-btn" style="width:100%; background-color:${isWritten ? '#3498db' : '#2ecc71'}; margin-bottom: 20px;" onclick="startBookmarkQuiz()">
+            <button class="nav-control-btn" style="width:100%; margin-bottom: 16px;" onclick="startBookmarkQuiz()">
                 해당 항목 모의고사 가동 (${bookmarkIds.length}문항)
             </button>
         `;
@@ -819,22 +1064,30 @@ function renderMyBookmarksTab() {
     
     let html = `
         ${startButtonHtml}
-        <p style="font-size:13px; color:#7f8c8d; margin-bottom:15px;">보관된 항목 총 ${bookmarks.length}개</p>
+        <p style="font-size:12.5px; color:#64748b; margin-bottom:12px;">보관된 항목 총 ${bookmarks.length}개</p>
     `;
     
     bookmarks.forEach((b, idx) => {
         const modeText = b.type === 'written' ? '[필기]' : '[실기]';
         let cleanDesc = b.desc ? b.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
 
+        let answerDisplay = escapeHtml(b.answer);
+        if (b.type === 'written' && b.choices && Array.isArray(b.choices)) {
+            const ansIdx = parseInt(b.answer, 10) - 1;
+            if (b.choices[ansIdx]) {
+                answerDisplay = `${b.answer}번. ${escapeHtml(b.choices[ansIdx])}`;
+            }
+        }
+
         html += `
-            <div class="log-box-card" style="border-top-color: #f1c40f;">
+            <div class="log-box-card" style="border-top-color: #f59e0b;">
                 <span class="bookmark-toggle-btn" style="position:absolute; top:12px; right:15px;" onclick="removeBookmarkFromTab(${idx})">★</span>
                 <div class="source-tag">${modeText} ${b.source}</div>
-                <div class="question-title" style="font-size:14px; padding-right:25px; white-space: pre-wrap; line-height: 1.6; word-break: break-all; letter-spacing: -0.3px;">${escapeHtml(b.text)}</div>
-                ${b.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                <div class="question-title" style="font-size:13.5px; padding-right:25px; white-space: pre-wrap; line-height: 1.55; word-break: break-all;">${escapeHtml(b.text)}</div>
+                ${b.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="view-content-wrapper">${formatViewHtml(b.view)}</div>` : ''}
-                <div style="font-size:13px; color:#27ae60; font-weight:bold; margin-top:5px;">정답 용어: ${escapeHtml(b.answer)}</div>
-                <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                <div style="font-size:13px; color:#16a34a; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>
+                <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
             </div>
         `;
     });
@@ -864,10 +1117,12 @@ function startBookmarkQuiz() {
 
 function fetchHistoryLogs() {
     const area = document.getElementById("history-ajax-area");
+    if (!area) return;
+
     const data = getHistoryLogs().filter(log => log.type === currentAppMode);
     
     if (data.length === 0) {
-        area.innerHTML = "<p style='color:#999; font-size:13px;'>저장된 완료 기록이 없습니다.</p>";
+        area.innerHTML = "<p style='color:#94a3b8; font-size:13px;'>저장된 완료 기록이 없습니다.</p>";
         return;
     }
     
@@ -877,19 +1132,20 @@ function fetchHistoryLogs() {
         const targetQuestions = s.questions || s.wrongs || [];
         window.historyLogQuestions[s.id] = targetQuestions;
         const quizLabel = s.quizLabel || "기출 문제풀이";
+        const displayTotal = s.total || targetQuestions.length || 0;
 
         html += `
             <div class="log-box-card" style="position:relative;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <span style="display:inline-block; padding:3px 8px; font-size:11px; font-weight:bold; border-radius:10px; background-color:#ebf5ff; color:#2980b9; margin-bottom:4px;">${quizLabel}</span>
-                        <div style="font-size:11px; color:#95a5a6;">풀이 시점: ${s.date}</div>
+                        <span style="display:inline-block; padding:3px 8px; font-size:11px; font-weight:bold; border-radius:6px; background-color: #f1f5f9; color: #0f172a; margin-bottom:4px;">${quizLabel}</span>
+                        <div style="font-size:11px; color:#94a3b8;">풀이 시점: ${s.date}</div>
                     </div>
-                    <button class="header-btn" style="background:#e74c3c; border:none; padding:4px 10px; font-size:11px; color:#fff;" onclick="deleteHistoryLog(${s.id})">삭제</button>
+                    <button class="header-btn" style="background:#ef4444; border:none; padding:4px 10px; font-size:11px; color:#fff;" onclick="deleteHistoryLog(${s.id})">삭제</button>
                 </div>
-                <div style="font-size:15px; font-weight:bold; margin:6px 0; color:#2c3e50;">최종 점수: ${s.score} / ${s.total} 문항</div>
-                <div style="font-size:13px; color:#e74c3c; font-weight:bold; margin-bottom:10px;">틀린 문제 수: ${s.wrongCount}개</div>
-                <button class="nav-control-btn" style="padding:6px; font-size:12px; background-color:#3498db;" onclick="toggleHistoryWrongList(${s.id})">
+                <div style="font-size:14.5px; font-weight:bold; margin:6px 0; color:#0f172a;">최종 점수: ${s.score}점 (총 ${displayTotal}문항)</div>
+                <div style="font-size:12.5px; color:#ef4444; font-weight:bold; margin-bottom:8px;">틀린 문제 수: ${s.wrongCount}개</div>
+                <button class="nav-control-btn" style="padding:7px; font-size:12px; background-color:#0284c7;" onclick="toggleHistoryWrongList(${s.id})">
                     상세 문항 확인하기
                 </button>
                 <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
@@ -900,15 +1156,24 @@ function fetchHistoryLogs() {
                         const modeText = w.type === 'written' ? '[필기]' : '[실기]';
                         let cleanDesc = w.desc ? w.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
 
+                        const realAns = w.realAnswer || w.answer;
+                        let answerDisplay = escapeHtml(realAns);
+                        if (w.type === 'written' && w.choices && Array.isArray(w.choices)) {
+                            const ansIdx = parseInt(realAns, 10) - 1;
+                            if (w.choices[ansIdx]) {
+                                answerDisplay = `${realAns}번. ${escapeHtml(w.choices[ansIdx])}`;
+                            }
+                        }
+
                         return `
-                            <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#2ecc71' : '#e74c3c'}; padding-left: 10px; margin-bottom: 12px; position: relative;">
-                                <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
-                                <div style="font-weight:bold; color:${isRight ? '#2ecc71' : '#c0392b'}; margin-bottom:3px;">${modeText} ${w.source} [${isRight ? '정답' : '오답'}]</div>
-                                <div style="font-weight:bold; color:#333; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                            <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#10b981' : '#ef4444'}; padding-left: 10px; margin-bottom: 10px; position: relative;">
+                                <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 16px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
+                                <div style="font-weight:bold; color:${isRight ? '#10b981' : '#dc2626'}; margin-bottom:3px;">${modeText} ${w.source} [${isRight ? '정답' : '오답'}]</div>
+                                <div style="font-weight:bold; color:#1e293b; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                                 ${w.view ? `<div class="view-content-wrapper">${formatViewHtml(w.view)}</div>` : ''}
-                                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#27ae60':'#c0392b'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
-                                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${escapeHtml(w.realAnswer || w.answer)}</div>
-                                <div style="margin-top: 8px; font-size: 12px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#16a34a':'#dc2626'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
+                                <div style="font-size:12.5px; margin:2px 0; color:#16a34a; font-weight:bold;">정답 용어: ${answerDisplay}</div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #ffffff; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
                             </div>
                         `;
                     }).join('')}
@@ -959,7 +1224,9 @@ function toggleBookmarkFromReview(idx, element) {
 
 function toggleHistoryWrongList(id) {
     const area = document.getElementById("wrong-container-" + id);
-    area.style.display = area.style.display === "none" ? "block" : "none";
+    if (area) {
+        area.style.display = area.style.display === "none" ? "block" : "none";
+    }
 }
 
 function startQuizTimer(isNewSession) {
@@ -1019,11 +1286,9 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
     let bookmarkIds = customIds || [];
     
     if (!selectedYear) {
-        const selectElem = document.getElementById("quiz-year-select");
-        selectedYear = selectElem ? selectElem.value : "all";
+        selectedYear = "all";
     }
 
-    // 순차 풀이 이어풀기 기록 검사 및 복원 준비 (지문은 서버 최신본 유지)
     let resumeState = null;
     if (selectedYear === 'sequential' && localStorage.getItem("정처기_순차풀이_중간저장")) {
         const savedState = JSON.parse(localStorage.getItem("정처기_순차풀이_중간저장"));
@@ -1049,7 +1314,6 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
     allSolvedIds = [...new Set(allSolvedIds)];
     
     try {
-        // 문제 목록은 항상 서버 API를 통해 최신 practical.json 기준으로 호출
         const res = await fetch('/api/quiz/new', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1076,7 +1340,8 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         activeQuizLabel = data.quizLabel || "기출 문제풀이";
         sessionQuizData = data.questions;
 
-        // 이어풀기인 경우 위치와 이전 작성 답안만 복원
+        logUserAction("START_EXAM", { mode: currentAppMode, year: selectedYear, subject: customSubject || "전체" });
+
         if (resumeState) {
             currentQuizIndex = Math.min(resumeState.currentQuizIndex || 0, sessionQuizData.length - 1);
             savedUserAnswers = resumeState.savedUserAnswers || {};
@@ -1147,7 +1412,6 @@ function extractChoices(q) {
             const lines = trimmedView.split("\n").map(l => l.trim()).filter(l => l.length > 0);
             const hasItemMarkers = lines.length > 0 && lines.every(line => /^[㉠-㉾①-⑮•\-\*]|^\([0-9a-zA-Zㄱ-ㅎ㉠-㉾①-⑮]+\)|^[0-9a-zA-Zㄱ-ㅎ]\s*[\.\,\)\:]/i.test(line));
             
-            // 단순 설명문 내 콜론(:)이나 쉼표(,)는 단어 목록으로 오인하지 않도록 파이프(|) 중심 판별
             const hasChoiceKeywords = q.text.includes("보기") || q.text.includes("골라") || q.text.includes("아래에서") || q.text.includes("찾아");
             const isWordList = hasChoiceKeywords && trimmedView.includes("|") &&
                                !lines.some(line => line.includes("SELECT") || line.includes("FROM") || line.includes("UPDATE"));
@@ -1208,13 +1472,14 @@ function extractChoices(q) {
         if (/^[\|\,\/\•\-\*\·\s]+$/.test(text)) continue;
 
         text = text.replace(/^[•\-\*\·\s]+/, '');
-        text = text.replace(/^[㉠-㉾①-⑮]/, '');
-        text = text.replace(/^[0-9a-zA-Zㄱ-ㅎ]\s*[\.\,\)\:]\s*/, '');
-        text = text.replace(/^\([0-9a-zA-Zㄱ-ㅎ㉠-㉾①-⑮]+\)\s*/, '');
-        text = text.trim();
+        if (text.length > 1) {
+            text = text.replace(/^[㉠-㉾①-⑮]/, '');
+            text = text.replace(/^[0-9a-zA-Zㄱ-ㅎ]\s*[\.\,\)\:]\s*/, '');
+            text = text.replace(/^\([0-9a-zA-Zㄱ-ㅎ㉠-㉾①-⑮]+\)\s*/, '');
+            text = text.trim();
+        }
 
-        // 15자를 넘는 긴 설명문, 문장 기호(~, :), 괄호 기호 등이 포함된 본문 텍스트는 버튼에서 제외
-        if (!text || text.length > 15 || text.includes("~") || text.includes(":") || text.includes("영역") ||
+        if (!text || text.length > 35 || text.includes("~") || text.includes(":") || text.includes("영역") ||
             text === "생성 패턴" || text === "구조 패턴" || text === "행위 패턴" ||
             text.includes("패턴 목록") || text.includes("목록]") || text.endsWith("]") ||
             text.includes("번 칸:") || text.includes("입력란:")) {
@@ -1229,7 +1494,7 @@ function extractChoices(q) {
     
     let html = `
         <div class="choices-guide-wrap" style="margin-top: 10px; margin-bottom: 6px;">
-            <div style="font-size: 11.5px; font-weight: bold; color: #2980b9; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+            <div style="font-size: 11.5px; font-weight: bold; color: #0284c7; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
                 [빠른 정답 입력]
             </div>
             <div class="choices-container" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-start;"> 
@@ -1238,9 +1503,9 @@ function extractChoices(q) {
     cleanItems.forEach(item => {
         const safeClickVal = item.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         html += `
-            <button type="button" class="choice-badge" style="padding: 6px 12px; background: #ffffff; border: 1px solid #3498db; border-radius: 20px; font-size: 13px; color: #2980b9; cursor: pointer; font-weight: bold; outline: none; transition: background 0.2s;" 
+            <button type="button" class="choice-badge" style="padding: 6px 12px; background: #ffffff; border: 1px solid #bae6fd; border-radius: 20px; font-size: 12.5px; color: #0284c7; cursor: pointer; font-weight: bold; outline: none; transition: background 0.2s;" 
                 onclick="handleChoiceClick('${safeClickVal}')" 
-                onfocus="this.style.background='#e8f0fe';" 
+                onfocus="this.style.background='#e0f2fe';" 
                 onblur="this.style.background='#ffffff';">
                 ${escapeHtml(item)}
             </button>
@@ -1285,13 +1550,11 @@ window.selectWrittenAnswer = function(qId, choiceNum) {
 };
 
 function focusInitialField(q) {
-    // 문제 최상단 지시문으로 포커스 이동 (가상 키보드 팝업 방지 및 지문 우선 노출)
     const questionTarget = document.getElementById("question-focus-target");
     if (questionTarget) {
         questionTarget.focus();
     }
 
-    // [빠른 정답 입력] 터치 시 바로 들어갈 수 있도록 참조만 백그라운드에 보관
     if (q.type !== 'written') {
         if (q.inputCount > 1) {
             activeInputRef = document.querySelector(`.multi-input-${q.id}[data-index="0"]`);
@@ -1305,7 +1568,6 @@ function renderSingleQuestion() {
     const q = sessionQuizData[currentQuizIndex];
     if (!q) return;
 
-    // 현재 문제 ID와 모드를 URL 파라미터에 실시간 반영 (새로고침 시 해당 문제 유지)
     if (activeSessionYear === 'sequential') {
         history.replaceState(null, '', `?mode=${currentAppMode}&year=sequential&id=${q.id}`);
     } else {
@@ -1321,7 +1583,6 @@ function renderSingleQuestion() {
     
     let delimiter = (q.answer && q.answer.includes(" / ")) ? " / " : ",";
     
-    // 순차 풀이 시 지문은 제외하고 답안과 인덱스만 가볍게 저장
     if (activeSessionYear === 'sequential') {
         const saveState = {
             activeSessionYear: activeSessionYear,
@@ -1410,7 +1671,7 @@ function renderSingleQuestion() {
         
         ${formatQuestionView(q.text)}
         
-        ${q.image ? `<div style="text-align:center; margin-bottom:15px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+        ${q.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
         ${q.view ? `<div class="view-content-wrapper">${formatViewHtml(q.view)}</div>` : ''}
         
         ${choicesHtml}
@@ -1423,7 +1684,7 @@ function renderSingleQuestion() {
         </div>
 
         <div class="nav-btn-group">
-            <button class="nav-control-btn" style="background-color:#7f8c8d;" onclick="moveStep(-1)" ${currentQuizIndex === 0 ? 'disabled' : ''}>← Prev</button>
+            <button class="nav-control-btn" style="background-color:#64748b;" onclick="moveStep(-1)" ${currentQuizIndex === 0 ? 'disabled' : ''}>← Prev</button>
             <button class="nav-control-btn" onclick="moveStep(1)">
                 ${currentQuizIndex === sessionQuizData.length - 1 ? '최종 채점 및 제출' : 'Next →'}
             </button>
@@ -1485,7 +1746,7 @@ function showAnswerBoxInline(q, answerData) {
     const data = answerData || revealedAnswers[q.id];
     if (!data) return;
     
-    let answerDisplay = data.answer;
+    let answerDisplay = escapeHtml(data.answer);
     if (q.type === 'written' && data.choices) {
         const ansIdx = parseInt(data.answer, 10) - 1;
         if (data.choices[ansIdx]) {
@@ -1497,8 +1758,8 @@ function showAnswerBoxInline(q, answerData) {
 
     panelArea.innerHTML = `
         <div class="instant-feedback-panel">
-            <div style="font-weight:bold; color:#15803d; margin-bottom:8px; font-size:15px;">💡 출제 정답: ${answerDisplay}</div>
-            <div style="font-size:14px; color:#166534; line-height: 1.6; word-break: keep-all;">${cleanDesc}</div>
+            <div style="font-weight:bold; color:#15803d; margin-bottom:6px; font-size:14.5px;">💡 출제 정답: ${answerDisplay}</div>
+            <div style="font-size:13.5px; color:#166534; line-height: 1.6; word-break: keep-all;">${cleanDesc}</div>
         </div>
     `;
     
@@ -1507,6 +1768,8 @@ function showAnswerBoxInline(q, answerData) {
         actionCard.innerText = "확인 완료";
         actionCard.style.backgroundColor = "#16a34a";
     }
+
+    logUserAction("INSTANT_CHECK_ANSWER", { questionId: q.id, mode: q.type });
 
     setTimeout(() => {
         if (actionCard) {
@@ -1524,7 +1787,7 @@ function hideAnswerBoxInline() {
     const actionCard = document.getElementById("main-action-trigger-card");
     if (actionCard) {
         actionCard.innerText = "정답 확인";
-        actionCard.style.backgroundColor = "#3fa0a0";
+        actionCard.style.backgroundColor = "#0f172a";
     }
 }
 
@@ -1593,6 +1856,7 @@ async function submitQuizAnswers() {
         localStorage.removeItem("정처기_순차풀이_중간저장");
         
         saveHistoryToLocal(result);
+        logUserAction("SUBMIT_EXAM", { mode: activeSessionType, score: result.score, isPassed: result.isPassed });
         renderReviewResult(result);
     } catch (e) {
         console.error("제출 오류:", e);
@@ -1619,6 +1883,7 @@ function saveHistoryToLocal(result) {
     }));
     
     const currentSolvedIds = result.reviewData.map(r => r.id);
+    const calculatedTotal = result.total || (result.reviewData ? result.reviewData.length : (sessionQuizData ? sessionQuizData.length : 0));
 
     const newLog = {
         id: Date.now(),
@@ -1626,7 +1891,7 @@ function saveHistoryToLocal(result) {
         type: activeSessionType,
         quizLabel: result.quizLabel || activeQuizLabel || "기출 문제풀이",
         score: result.score,
-        total: result.total,
+        total: calculatedTotal,
         wrongCount: result.reviewData.filter(r => !r.isRight).length,
         questions: questions,
         solvedIds: currentSolvedIds
@@ -1657,12 +1922,6 @@ function renderReviewResult(result) {
     if (isPassed) {
         resultBannerHtml = `
             <div class="pass-celebration-card">
-                <div class="sparkle-group">
-                    <span class="sparkle-star">✨</span>
-                    <span class="sparkle-star" style="animation-delay: 0.3s;">⭐</span>
-                    <span class="sparkle-star" style="animation-delay: 0.6s;">✨</span>
-                </div>
-                
                 <div class="cute-mascot">
                     <svg viewBox="0 0 100 100" width="100%" height="100%">
                         <circle cx="50" cy="55" r="35" fill="#f1c40f" />
@@ -1678,7 +1937,7 @@ function renderReviewResult(result) {
                     </svg>
                 </div>
 
-                <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold;">축하합니다! 합격입니다!</h2>
+                <h2 style="margin: 0 0 6px 0; font-size: 22px; font-weight: bold;">축하합니다! 합격입니다!</h2>
                 <p style="margin: 0; font-size: 15px; font-weight: bold;">
                     최종 점수: ${finalScore}점 / 100점 만점
                 </p>
@@ -1694,13 +1953,13 @@ function renderReviewResult(result) {
         }
 
         resultBannerHtml = `
-            <div style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: #ffffff; padding: 25px 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(231,76,60,0.3);">
-                <div style="font-size: 45px; margin-bottom: 5px;">💪</div>
-                <h2 style="margin: 0 0 5px 0; font-size: 24px;">아쉽습니다! 불합격입니다</h2>
-                <p style="margin: 0; font-size: 16px; font-weight: bold;">
+            <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: #ffffff; padding: 24px 18px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
+                <div style="font-size: 40px; margin-bottom: 5px;">💪</div>
+                <h2 style="margin: 0 0 5px 0; font-size: 22px;">아쉽습니다! 불합격입니다</h2>
+                <p style="margin: 0; font-size: 15px; font-weight: bold;">
                     최종 점수: ${finalScore}점 / 100점 만점
                 </p>
-                <p style="margin: 6px 0 0 0; font-size: 12px; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 6px;">
+                <p style="margin: 6px 0 0 0; font-size: 12px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 6px;">
                     불합격 사유: ${failReasonText}
                 </p>
             </div>
@@ -1710,9 +1969,9 @@ function renderReviewResult(result) {
     let html = `
         <div style="padding: 10px 0;">
             ${resultBannerHtml}
-            <button class="nav-control-btn" style="width:100%; margin-bottom:20px;" onclick="loadMainDashboard()">대시보드 메인으로 복귀</button>
+            <button class="nav-control-btn" style="width:100%; margin-bottom:16px;" onclick="loadMainDashboard()">대시보드 메인으로 복귀</button>
         </div>
-        <h4 style="color:#34495e; border-bottom:2px solid #34495e; padding-bottom:5px; margin-bottom:15px;">문항별 상세 리뷰</h4>
+        <h4 style="color:#0f172a; border-bottom:2px solid #0f172a; padding-bottom:5px; margin-bottom:12px;">문항별 상세 리뷰</h4>
     `;
     
     result.reviewData.forEach((r, idx) => {
@@ -1730,21 +1989,21 @@ function renderReviewResult(result) {
 
         let scoreBadge = "";
         if (r.type === 'practical') {
-            scoreBadge = `<span style="font-size:12px; font-weight:bold; color:${r.earnedScore > 0 ? '#27ae60' : '#e74c3c'}; float:right;">획득: ${r.earnedScore}점 / ${r.maxScore}점</span>`;
+            scoreBadge = `<span style="font-size:12px; font-weight:bold; color:${r.earnedScore > 0 ? '#16a34a' : '#dc2626'}; float:right;">획득: ${r.earnedScore}점 / ${r.maxScore}점</span>`;
         }
 
         let cleanDesc = r.desc ? r.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
 
         html += `
-            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#2ecc71' : (r.earnedScore > 0 ? '#f39c12' : '#e74c3c')}; position: relative;">
+            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#10b981' : (r.earnedScore > 0 ? '#f59e0b' : '#ef4444')}; position: relative;">
                 <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromReview(${idx}, this)">${starChar}</span>
                 <div class="source-tag">${idx + 1}번 | ${modeText} 출처: ${r.source} [${r.isRight ? 'PASS' : (r.earnedScore > 0 ? 'PARTIAL' : 'FAIL')}] ${scoreBadge}</div>
-                <div class="question-title" style="font-size:14px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
-                ${r.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                <div class="question-title" style="font-size:13.5px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
+                ${r.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
-                <div style="font-size:13px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#27ae60' : (r.earnedScore > 0 ? '#d35400' : '#c0392b')}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
-                <div style="font-size:13px; margin:2px 0; color:#27ae60; font-weight:bold;">정답 용어: ${answerDisplay}</div>
-                <div style="margin-top:8px; font-size:12px; color:#555; background:#f8f9fa; padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#16a34a' : (r.earnedScore > 0 ? '#d97706' : '#dc2626')}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
+                <div style="font-size:12.5px; margin:2px 0; color:#16a34a; font-weight:bold;">정답 용어: ${answerDisplay}</div>
+                <div style="margin-top:8px; font-size:12px; color:#475569; background:#f8f9fa; padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
             </div>
         `;
     });
@@ -1762,8 +2021,16 @@ function exitToDashboard() {
         if (confirm(confirmMessage)) {
             loadMainDashboard();
         }
+    } else if (globalTabState !== 'all') {
+        switchMainTab('all');
     } else {
-        loadMainDashboard();
+        const centerTitle = document.getElementById("header-center-title")?.innerText;
+        if (centerTitle === "채점 분석 리포트") {
+            loadMainDashboard();
+        } else {
+            currentAppMode = null;
+            loadModeSelectionScreen();
+        }
     }
 }
 
@@ -1812,6 +2079,7 @@ window.openFeedbackModal = function() {
     .then(res => res.json().then(data => ({ status: res.status, body: data })))
     .then(obj => {
         if (obj.status === 200 && obj.body.success) {
+            logUserAction("FEEDBACK_SENT", { mode: currentAppMode });
             alert("소중한 의견이 성공적으로 접수되었습니다. 검토 후 신속히 반영하겠습니다.");
         } else {
             alert(`[안내] ${obj.body.error || "제보 전송에 실패했습니다."}`);
@@ -1829,7 +2097,6 @@ window.onload = function() {
     const mode = urlParams.get('mode');
     const year = urlParams.get('year');
 
-    // URL 파라미터에 문제 번호가 있으면 해당 문제로 즉시 직행 (새로고침 시 화면 유지)
     if (targetId) {
         currentAppMode = (mode === 'written') ? 'written' : 'practical';
         globalTabState = 'all';

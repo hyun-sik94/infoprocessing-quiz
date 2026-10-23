@@ -1,545 +1,486 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const Database = require('better-sqlite3');
+
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
+// 미들웨어 설정
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const db = new sqlite3.Database('./feedback.db');
+// SQLite 데이터베이스 초기화
+const dbPath = path.join(__dirname, 'feedback.db');
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
-// DB 테이블 구조 생성
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS feedbacks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        app_mode TEXT, 
-        message TEXT, 
-        reg_date TEXT,
-        date_key TEXT,
-        user_ip TEXT,
-        fingerprint TEXT
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS banned_users (
+// 테이블 및 인덱스 초기화
+db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        target_value TEXT UNIQUE,
-        reason TEXT,
-        created_at TEXT
-    )`);
-});
+        app_mode TEXT,
+        message TEXT,
+        fingerprint TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 
-function loadJsonData(filePath) {
+    CREATE TABLE IF NOT EXISTS activity_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fingerprint TEXT,
+        action TEXT,
+        detail TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_activity_fp ON activity_logs(fingerprint);
+`);
+
+// 메모리 세션 저장소
+const sessionStore = new Map();
+
+// 1. 등록된 회차/연도 목록 조회 API (실기는 연도별 추출)
+app.get('/api/quiz/rounds', (req, res) => {
     try {
-        const absolutePath = path.join(__dirname, filePath);
-        if (fs.existsSync(absolutePath)) {
-            const rawData = fs.readFileSync(absolutePath, 'utf8');
-            return JSON.parse(rawData);
-        } else {
-            return [];
-        }
-    } catch (err) {
-        return [];
-    }
-}
-
-function sendSecurePayload(res, data) {
-    const jsonStr = JSON.stringify(data);
-    const encoded = Buffer.from(jsonStr, 'utf8').toString('base64');
-    res.json({ payload: encoded });
-}
-
-function getSubjectNameServer(q) {
-    if (q.type === 'written') {
-        const id = q.id;
-        if (id >= 2001 && id <= 2020) return "1과목: 소프트웨어 설계";
-        if (id >= 2021 && id <= 2040) return "2과목: 소프트웨어 개발";
-        if (id >= 2041 && id <= 2060) return "3과목: 데이터베이스 구축";
-        if (id >= 2061 && id <= 2080) return "4과목: 프로그래밍 언어 활용";
-        if (id >= 2081 && id <= 2100) return "5과목: 정보시스템 구축관리";
-        return "필기 기출 공통";
-    } else {
-        return "실기 기출 종합";
-    }
-}
-
-let practicalQuestionPool = loadJsonData('data/practical.json');
-let writtenQuestionPool = loadJsonData('data/written.json');
-let quizSessions = {};
-
-app.post('/api/quiz/new', (req, res) => {
-    const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId } = req.body;
-    
-    practicalQuestionPool = loadJsonData('data/practical.json');
-    writtenQuestionPool = loadJsonData('data/written.json');
-    
-    let targetPool = (examType === 'written') ? writtenQuestionPool : practicalQuestionPool;
-    let availableQuestions = [];
-    let isSequentialMode = false;
-    let quizLabel = "기출 문제풀이";
-
-    if (targetQuestionId) {
-        availableQuestions = targetPool.filter(q => q.id === targetQuestionId);
-        quizLabel = "취약 문제 집중 풀이";
-    } else if (subject) {
-        availableQuestions = targetPool.filter(q => getSubjectNameServer(q) === subject);
-        quizLabel = `과목별 풀이 (${subject})`;
-    } else if (year === 'sequential') {
-        availableQuestions = [...targetPool].sort((a, b) => a.id - b.id);
-        isSequentialMode = true;
-        quizLabel = "전체 순차 풀이";
-    } else if (year === 'bookmark') {
-        const ids = (bookmarkIds && bookmarkIds.ids) || [];
-        const texts = (bookmarkIds && bookmarkIds.texts) || [];
-        availableQuestions = targetPool.filter(q => ids.includes(q.id) || texts.includes(q.text));
-        quizLabel = "즐겨찾기 풀이";
-    } else if (year === 'cbt') {
-        availableQuestions = [...targetPool];
-        quizLabel = "실전 모의고사 (100제)";
-    } else if (year === 'all') {
-        availableQuestions = [...targetPool];
-        quizLabel = "랜덤 모의고사 (30제)";
-    } else {
-        availableQuestions = targetPool.filter(q => q.source && q.source.includes(year + "년"));
-        quizLabel = `${year}년도 기출 풀이`;
-    }
-
-    let selectedQuestions = [];
-    if (isSequentialMode || targetQuestionId) {
-        selectedQuestions = availableQuestions;
-    } else {
-        const unsolvedList = availableQuestions.filter(q => !solvedIds.includes(q.id));
-        const solvedList = availableQuestions.filter(q => solvedIds.includes(q.id));
-        const shuffledUnsolved = unsolvedList.sort(() => Math.random() - 0.5);
-        const shuffledSolved = solvedList.sort(() => Math.random() - 0.5);
-        const prioritizedCombined = [...shuffledUnsolved, ...shuffledSolved];
-        let targetSize = 30;
-        if (year === 'cbt') targetSize = 100;
-        else if (subject) targetSize = prioritizedCombined.length;
-        else if (year === 'all') targetSize = 30;
-        else targetSize = Math.min(30, prioritizedCombined.length);
-
-        selectedQuestions = prioritizedCombined.slice(0, targetSize);
-    }
-
-    const newSession = {
-        id: Date.now(),
-        year: year,
-        type: examType || 'practical',
-        quizLabel: quizLabel,
-        fullQuestions: selectedQuestions,
-        currentIndex: 0,
-        userAnswers: {}
-    };
-    
-    quizSessions[newSession.id] = newSession;
-
-    const secureClientQuestions = selectedQuestions.map(q => {
-        let inputCount = 1;
-        if (q.inputCount) {
-            inputCount = q.inputCount;
-        } else if (q.answer && q.answer.includes(" / ")) {
-            inputCount = q.answer.split(" / ").length;
-        } else if (q.answer && q.answer.includes(",")) {
-            inputCount = q.answer.split(",").length;
-        }
+        const type = req.query.type || 'practical';
+        const isWritten = (type === 'written');
+        const dataPath = isWritten 
+            ? path.join(__dirname, 'data', 'written.json') 
+            : path.join(__dirname, 'data', 'practical.json');
         
-        return {
-            id: q.id,
-            type: q.type || 'practical',
-            source: q.source,
-            text: q.text,
-            view: q.view || null,
-            choices: q.choices || null,
-            image: q.image || null,
-            inputCount: inputCount
-        };
-    });
-
-    sendSecurePayload(res, { sessionId: newSession.id, quizLabel: quizLabel, questions: secureClientQuestions });
-});
-
-app.post('/api/quiz/check-answer', (req, res) => {
-    const { sessionId, questionId } = req.body;
-    const session = quizSessions[sessionId];
-    let targetQuestion = null;
-    if (session && session.fullQuestions) {
-        targetQuestion = session.fullQuestions.find(q => q.id === questionId);
-    }
-    if (!targetQuestion) {
-        targetQuestion = [...writtenQuestionPool, ...practicalQuestionPool].find(q => q.id === questionId);
-    }
-    if (!targetQuestion) {
-        return res.status(404).json({ error: "해당 문제를 찾을 수 없습니다." });
-    }
-
-    sendSecurePayload(res, {
-        answer: targetQuestion.answer,
-        desc: targetQuestion.desc,
-        choices: targetQuestion.choices || null
-    });
-});
-
-app.post('/api/quiz/submit', (req, res) => {
-    const { sessionId, userAnswers } = req.body;
-    const session = quizSessions[sessionId];
-    if (!session) {
-        return res.status(400).json({ error: "존재하지 않거나 만료된 세션 회차 정보입니다." });
-    }
-    
-    const currentSessionQuestions = session.fullQuestions;
-    let totalEarnedPoints = 0;
-    let subjectScores = {
-        "1과목: 소프트웨어 설계": { correct: 0, total: 0, score: 0 },
-        "2과목: 소프트웨어 개발": { correct: 0, total: 0, score: 0 },
-        "3과목: 데이터베이스 구축": { correct: 0, total: 0, score: 0 },
-        "4과목: 프로그래밍 언어 활용": { correct: 0, total: 0, score: 0 },
-        "5과목: 정보시스템 구축관리": { correct: 0, total: 0, score: 0 }
-    };
-
-    const reviewData = currentSessionQuestions.map(q => {
-        const userAnswer = (userAnswers[q.id] || "").trim();
-        const realAnswer = q.answer; 
-        let isRight = true;
-        let questionEarnedPoints = 0;
-        let questionMaxPoints = (q.type === 'written') ? 1 : 5;
-        
-        if (q.type === 'written') {
-            if (userAnswer === realAnswer) {
-                isRight = true;
-                questionEarnedPoints = 1;
-            } else {
-                isRight = false;
-                questionEarnedPoints = 0;
-            }
-            const subj = getSubjectNameServer(q);
-            if (subjectScores[subj]) {
-                subjectScores[subj].total++;
-                if (isRight) subjectScores[subj].correct++;
-            }
-        } else {
-            const slotDelimiter = realAnswer.includes(" / ") ? " / " : ",";
-            const realSlots = realAnswer.split(slotDelimiter).map(s => s.trim());
-            const userSlots = userAnswer.split(slotDelimiter).map(s => s.trim());
-            
-            let correctCount = 0;
-            for (let i = 0; i < realSlots.length; i++) {
-                const realSlotGroup = realSlots[i];
-                const allowedAliases = realSlotGroup.split("|").map(a => a.trim().toLowerCase());
-                const userSlotVal = (userSlots[i] || "").trim().toLowerCase();
-                
-                const isSlotMatch = allowedAliases.some(alias => {
-                    return userSlotVal === alias || 
-                           userSlotVal.replace(/\s+/g, '') === alias.replace(/\s+/g, '') ||
-                           userSlotVal.replace(/[\.\s]/g, '') === alias.replace(/[\.\s]/g, '');
-                });
-                
-                if (isSlotMatch) {
-                    correctCount++;
-                }
-            }
-            
-            if (correctCount === realSlots.length) {
-                isRight = true;
-                questionEarnedPoints = 5;
-            } else if (correctCount > 0) {
-                isRight = false;
-                questionEarnedPoints = Math.round((5 * (correctCount / realSlots.length)) * 10) / 10;
-            } else {
-                isRight = false;
-                questionEarnedPoints = 0;
-            }
-        }
-        
-        totalEarnedPoints += questionEarnedPoints;
-        return {
-            id: q.id,
-            source: q.source,
-            text: q.text,
-            view: q.view || null,
-            choices: q.choices || null,
-            type: q.type,
-            userAnswer: userAnswer,
-            realAnswer: realAnswer,
-            desc: q.desc,
-            image: q.image || null,
-            isRight: isRight,
-            earnedScore: questionEarnedPoints,
-            maxScore: questionMaxPoints
-        };
-    });
-
-    let finalScore = 0;
-    let isGwarak = false;
-    let gwarakSubjects = [];
-
-    if (session.type === 'written') {
-        finalScore = Math.round((totalEarnedPoints / currentSessionQuestions.length) * 100);
-        Object.keys(subjectScores).forEach(subj => {
-            const item = subjectScores[subj];
-            if (item.total > 0) {
-                item.score = Math.round((item.correct / item.total) * 100);
-                if (item.score < 40) {
-                    isGwarak = true;
-                    gwarakSubjects.push(`${subj} (${item.score}점)`);
-                }
-            }
-        });
-    } else {
-        finalScore = Math.round(totalEarnedPoints * 10) / 10;
-    }
-
-    let isPassed = false;
-    if (session.type === 'written') {
-        if (finalScore >= 60 && !isGwarak) isPassed = true;
-    } else {
-        if (finalScore >= 60) isPassed = true;
-    }
-    
-    const quizLabel = session.quizLabel || "기출 문제풀이";
-    delete quizSessions[sessionId];
-    
-    sendSecurePayload(res, { 
-        score: finalScore, 
-        isPassed: isPassed,
-        isGwarak: isGwarak,
-        gwarakSubjects: gwarakSubjects,
-        subjectScores: subjectScores,
-        quizLabel: quizLabel, 
-        reviewData: reviewData 
-    });
-});
-
-app.get('/api/quiz/search', (req, res) => {
-    const query = (req.query.answer || '').trim();
-    const examType = req.query.type || 'practical';
-    if (!query) return sendSecurePayload(res, []);
-
-    const targetPool = (examType === 'written') ? writtenQuestionPool : practicalQuestionPool;
-    const lowerQuery = query.toLowerCase();
-    const compactQuery = lowerQuery.replace(/\s+/g, '');
-
-    const results = targetPool.filter(q => {
-        if (!q.answer) return false;
-        const lowerAnswer = q.answer.toLowerCase();
-        const compactAnswer = lowerAnswer.replace(/\s+/g, '');
-        return lowerAnswer.includes(lowerQuery) || compactAnswer.includes(compactQuery);
-    });
-
-    sendSecurePayload(res, results);
-});
-
-// 사용자 제보 등록 (하루 10회 제한 및 밴 체크)
-app.post('/api/feedback', (req, res) => {
-    const { appMode, message, fingerprint } = req.body;
-    const userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
-    const fp = fingerprint || "unknown_fp";
-    const now = new Date();
-    const dateKey = now.toISOString().split('T')[0];
-    const regDate = now.toLocaleString('ko-KR');
-
-    if (!message || message.trim() === "") {
-        return res.status(400).json({ error: "제보 내용을 입력해 주세요." });
-    }
-
-    db.get("SELECT * FROM banned_users WHERE target_value = ? OR target_value = ?", [userIp, fp], (err, banned) => {
-        if (err) return res.status(500).json({ error: "DB 조회 오류" });
-        if (banned) {
-            return res.status(403).json({ error: "차단된 사용자입니다. 더 이상 제보를 남길 수 없습니다." });
+        if (!fs.existsSync(dataPath)) {
+            return res.json([]);
         }
 
-        db.get(
-            "SELECT COUNT(*) AS count FROM feedbacks WHERE (user_ip = ? OR fingerprint = ?) AND date_key = ?",
-            [userIp, fp, dateKey],
-            (err, row) => {
-                if (err) return res.status(500).json({ error: "DB 검증 오류" });
+        const questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
-                if (row && row.count >= 10) {
-                    return res.status(429).json({ error: "하루에 최대 10개의 제보만 작성하실 수 있습니다. 내일 다시 시도해 주세요." });
+        if (!isWritten) {
+            // [실기] 문항수 없이 연도별로만 고유하게 추출
+            const yearSet = new Set();
+            questions.forEach(q => {
+                const src = String(q.source || '').trim();
+                const m = src.match(/(\d{4}\s*년(?:도)?)/);
+                if (m) {
+                    const cleanYear = m[1].replace(/\s+/g, '').replace('년도', '년');
+                    yearSet.add(cleanYear);
                 }
-
-                const stmt = db.prepare("INSERT INTO feedbacks (app_mode, message, reg_date, date_key, user_ip, fingerprint) VALUES (?, ?, ?, ?, ?, ?)");
-                stmt.run(appMode, message.trim(), regDate, dateKey, userIp, fp, function(err2) {
-                    if (err2) {
-                        return res.status(500).json({ error: "제보 저장에 실패했습니다." });
-                    }
-                    res.json({ success: true });
-                });
-                stmt.finalize();
-            }
-        );
-    });
-});
-
-// 관리자 제보 목록 조회
-app.get('/api/feedback/list', (req, res) => {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = 10;
-    const offset = (page - 1) * limit;
-
-    db.get("SELECT COUNT(*) AS total FROM feedbacks", [], (err, countRow) => {
-        if (err) return res.status(500).send("DB 오류가 발생했습니다.");
-        
-        const totalItems = countRow ? countRow.total : 0;
-        const totalPages = Math.ceil(totalItems / limit) || 1;
-
-        db.all("SELECT * FROM feedbacks ORDER BY id DESC LIMIT ? OFFSET ?", [limit, offset], (err, rows) => {
-            if (err) return res.status(500).send("조회 오류가 발생했습니다.");
-
-            db.all("SELECT target_value FROM banned_users", [], (err, bannedRows) => {
-                const bannedSet = new Set(bannedRows ? bannedRows.map(b => b.target_value) : []);
-
-                let itemsHtml = "";
-                if (rows.length === 0) {
-                    itemsHtml = `<div class="empty-msg">접수된 제보가 없습니다.</div>`;
-                } else {
-                    rows.forEach(row => {
-                        const isIpBanned = bannedSet.has(row.user_ip);
-                        const isFpBanned = bannedSet.has(row.fingerprint);
-                        const isBanned = isIpBanned || isFpBanned;
-
-                        itemsHtml += `
-                            <div class="feedback-card ${isBanned ? 'banned-card' : ''}">
-                                <div class="card-header">
-                                    <span class="badge ${row.app_mode === 'written' ? 'written' : 'practical'}">
-                                        ${row.app_mode === 'written' ? '필기' : '실기'}
-                                    </span>
-                                    <span class="reg-date">${row.reg_date}</span>
-                                    ${isBanned ? '<span class="ban-tag">차단됨</span>' : ''}
-                                </div>
-                                <div class="card-message">${(row.message || '').replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-                                <div class="card-footer">
-                                    <div class="user-info">
-                                        <span>IP: <code>${row.user_ip || '알 수 없음'}</code></span>
-                                        <span>Device FP: <code>${(row.fingerprint || '').substring(0, 12)}...</code></span>
-                                    </div>
-                                    <div class="actions">
-                                        ${!isBanned ? `
-                                            <button class="btn-ban" onclick="banUser('${row.user_ip}', '${row.fingerprint}')">사용자 차단(Ban)</button>
-                                        ` : `
-                                            <button class="btn-unban" onclick="unbanUser('${row.user_ip}', '${row.fingerprint}')">차단 해제</button>
-                                        `}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-
-                let paginationHtml = `<div class="pagination">`;
-                if (page > 1) {
-                    paginationHtml += `<a href="/api/feedback/list?page=${page - 1}" class="page-btn">‹ 이전</a>`;
-                }
-                for (let i = 1; i <= totalPages; i++) {
-                    paginationHtml += `<a href="/api/feedback/list?page=${i}" class="page-btn ${i === page ? 'active' : ''}">${i}</a>`;
-                }
-                if (page < totalPages) {
-                    paginationHtml += `<a href="/api/feedback/list?page=${page + 1}" class="page-btn">다음 ›</a>`;
-                }
-                paginationHtml += `</div>`;
-
-                const fullPageHtml = `
-                <!DOCTYPE html>
-                <html lang="ko">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>사용자 제보 관리 센터</title>
-                    <style>
-                        body { font-family: 'Malgun Gothic', sans-serif; background: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-                        .container { max-width: 800px; margin: 0 auto; }
-                        .header-title { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3182ce; padding-bottom: 12px; margin-bottom: 20px; }
-                        .header-title h2 { margin: 0; color: #2d3748; }
-                        .total-count { font-size: 14px; color: #718096; font-weight: bold; }
-                        .feedback-card { background: #fff; border-radius: 10px; padding: 18px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 4px solid #3182ce; transition: all 0.2s; }
-                        .feedback-card.banned-card { border-left-color: #e53e3e; background: #fff5f5; opacity: 0.8; }
-                        .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-                        .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; color: #fff; }
-                        .badge.written { background: #3182ce; }
-                        .badge.practical { background: #38a169; }
-                        .reg-date { font-size: 12px; color: #a0aec0; }
-                        .ban-tag { font-size: 11px; font-weight: bold; color: #e53e3e; background: #fed7d7; padding: 2px 6px; border-radius: 4px; }
-                        .card-message { font-size: 15px; line-height: 1.6; color: #2d3748; white-space: pre-wrap; margin-bottom: 12px; word-break: break-all; }
-                        .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #edf2f7; padding-top: 10px; font-size: 12px; color: #718096; }
-                        .user-info code { background: #edf2f7; padding: 2px 5px; border-radius: 4px; color: #4a5568; }
-                        .btn-ban { background: #e53e3e; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
-                        .btn-ban:hover { background: #c53030; }
-                        .btn-unban { background: #718096; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
-                        .empty-msg { text-align: center; padding: 40px; color: #a0aec0; font-size: 15px; }
-                        .pagination { display: flex; justify-content: center; gap: 6px; margin-top: 25px; }
-                        .page-btn { padding: 8px 12px; border-radius: 6px; background: #fff; border: 1px solid #e2e8f0; color: #4a5568; text-decoration: none; font-size: 13px; font-weight: bold; }
-                        .page-btn.active { background: #3182ce; color: #fff; border-color: #3182ce; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header-title">
-                            <h2>💡 사용자 제보 관리 센터</h2>
-                            <span class="total-count">총 ${totalItems}건 접수됨 (페이지 ${page}/${totalPages})</span>
-                        </div>
-                        ${itemsHtml}
-                        ${paginationHtml}
-                    </div>
-
-                    <script>
-                        function banUser(ip, fp) {
-                            if (confirm('해당 사용자를 차단하시겠습니까? (이후 제보가 금지됩니다)')) {
-                                fetch('/api/admin/ban', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ ip: ip, fp: fp, reason: '악성 제보 차단' })
-                                }).then(res => res.json()).then(data => {
-                                    alert('차단 처리되었습니다.');
-                                    location.reload();
-                                });
-                            }
-                        }
-
-                        function unbanUser(ip, fp) {
-                            if (confirm('차단을 해제하시겠습니까?')) {
-                                fetch('/api/admin/unban', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ ip: ip, fp: fp })
-                                }).then(res => res.json()).then(data => {
-                                    alert('차단이 해제되었습니다.');
-                                    location.reload();
-                                });
-                            }
-                        }
-                    </script>
-                </body>
-                </html>
-                `;
-
-                res.send(fullPageHtml);
             });
+
+            const sortedYears = Array.from(yearSet)
+                .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+                .map(y => ({ name: y }));
+
+            return res.json(sortedYears);
+        }
+
+        // [필기] 회차별 추출 및 문항수 집계
+        const roundMap = new Map();
+        questions.forEach(q => {
+            const src = String(q.source || '').trim();
+            const match = src.match(/(\d{4}\s*년(?:도)?\s*[\d·~,\s]+회(?:\s*통합)?)/);
+            let roundName = "";
+            if (match) {
+                roundName = match[1].replace(/\s+/g, ' ').trim();
+            } else {
+                const yearMatch = src.match(/(\d{4}\s*년(?:도)?)/);
+                roundName = yearMatch ? yearMatch[1].trim() : src;
+            }
+
+            if (roundName) {
+                roundMap.set(roundName, (roundMap.get(roundName) || 0) + 1);
+            }
         });
-    });
+
+        const sortedRounds = Array.from(roundMap.entries()).map(([name, count]) => ({
+            name: name,
+            count: count
+        })).sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
+
+        res.json(sortedRounds);
+    } catch (e) {
+        console.error('회차/연도 목록 조회 오류:', e);
+        res.status(500).json({ error: '목록 조회 실패' });
+    }
 });
 
-app.post('/api/admin/ban', (req, res) => {
-    const { ip, fp, reason } = req.body;
-    const now = new Date().toLocaleString('ko-KR');
+// 2. 문제 출제 API
+app.post('/api/quiz/new', (req, res) => {
+    try {
+        const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId } = req.body;
+        const isWritten = (examType === 'written');
+        const dataPath = isWritten 
+            ? path.join(__dirname, 'data', 'written.json') 
+            : path.join(__dirname, 'data', 'practical.json');
+        
+        if (!fs.existsSync(dataPath)) {
+            return res.status(404).json({ error: '문제 데이터 파일을 찾을 수 없습니다.' });
+        }
 
-    const stmt = db.prepare("INSERT OR IGNORE INTO banned_users (target_value, reason, created_at) VALUES (?, ?, ?)");
-    stmt.run(ip, reason || "관리자 차단", now);
-    stmt.run(fp, reason || "관리자 차단", now);
-    stmt.finalize(err => {
-        if (err) return res.status(500).json({ error: "차단 등록 정보 처리 실패" });
+        const questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        let selectedQuestions = [];
+        let label = isWritten ? "필기 모의고사" : "실기 모의고사";
+
+        if (targetQuestionId) {
+            selectedQuestions = questions.filter(q => q.id === parseInt(targetQuestionId, 10));
+            label = "단일 문항 학습";
+        } else if (bookmarkIds && bookmarkIds.length > 0) {
+            selectedQuestions = questions.filter(q => bookmarkIds.includes(q.id));
+            label = "즐겨찾기 모의고사";
+        } else if (year === 'sequential') {
+            selectedQuestions = questions;
+            label = isWritten ? "필기 전체 순차 풀이" : "실기 전체 순차 풀이";
+        } else if (subject) {
+            selectedQuestions = questions.filter(q => q.subject === subject);
+            label = `${subject} 과목별 풀이`;
+        } else if (year === 'cbt' || year === 'all') {
+            const count = isWritten ? 100 : 30;
+            const shuffled = [...questions].sort(() => 0.5 - Math.random());
+            selectedQuestions = shuffled.slice(0, count);
+            label = isWritten ? "필기 실전 모의고사 (100제)" : "실기 무작위 30문항";
+        } else {
+            // 선택된 연도 또는 회차 매칭 (공백 무시)
+            const cleanTarget = String(year || '').replace(/\s+/g, '').replace('년도', '년');
+            selectedQuestions = questions.filter(q => {
+                const cleanSource = String(q.source || '').replace(/\s+/g, '').replace('년도', '년');
+                return cleanSource.includes(cleanTarget);
+            });
+            label = `${year} 기출 풀이`;
+        }
+
+        if (selectedQuestions.length === 0) {
+            return res.json({ questions: [], quizLabel: label, sessionId: null });
+        }
+
+        const sessionId = "SESSION_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+
+        const clientQuestions = selectedQuestions.map(q => {
+            const copy = { ...q };
+            delete copy.answer;
+            delete copy.desc;
+            return copy;
+        });
+
+        sessionStore.set(sessionId, {
+            questions: selectedQuestions,
+            quizLabel: label,
+            createdAt: Date.now()
+        });
+
+        if (sessionStore.size > 500) {
+            const now = Date.now();
+            for (const [key, value] of sessionStore.entries()) {
+                if (now - value.createdAt > 24 * 60 * 60 * 1000) {
+                    sessionStore.delete(key);
+                }
+            }
+        }
+
+        res.json({
+            sessionId: sessionId,
+            quizLabel: label,
+            questions: clientQuestions
+        });
+    } catch (e) {
+        console.error("문제 출제 오류:", e);
+        res.status(500).json({ error: "문제 데이터를 불러오는 중 오류가 발생했습니다." });
+    }
+});
+
+// 3. 단일 문제 정답 즉시 확인 API
+app.post('/api/quiz/check-answer', (req, res) => {
+    try {
+        const { sessionId, questionId } = req.body;
+        const session = sessionStore.get(sessionId);
+        if (!session) {
+            return res.status(400).json({ error: "만료되었거나 유효하지 않은 시험 세션입니다." });
+        }
+
+        const target = session.questions.find(q => q.id === parseInt(questionId, 10));
+        if (!target) {
+            return res.status(404).json({ error: "문제를 찾을 수 없습니다." });
+        }
+
+        res.json({
+            answer: target.answer,
+            desc: target.desc,
+            choices: target.choices || null
+        });
+    } catch (e) {
+        console.error("정답 확인 오류:", e);
+        res.status(500).json({ error: "정답 확인 처리 중 오류가 발생했습니다." });
+    }
+});
+
+// 4. 최종 시험 채점 및 제출 API
+app.post('/api/quiz/submit', (req, res) => {
+    try {
+        const { sessionId, userAnswers } = req.body;
+        const session = sessionStore.get(sessionId);
+        if (!session) {
+            return res.status(400).json({ error: "만료되었거나 유효하지 않은 시험 세션입니다." });
+        }
+
+        const questions = session.questions;
+        const isWritten = (questions[0] && questions[0].type === 'written');
+        let earnedScoreSum = 0;
+        let isGwarak = false;
+        let gwarakSubjects = [];
+
+        const reviewData = questions.map(q => {
+            const userAns = (userAnswers && userAnswers[q.id]) ? String(userAnswers[q.id]).trim() : "";
+            const realAns = String(q.answer || "").trim();
+            let isRight = false;
+            let earnedScore = 0;
+            let maxScore = isWritten ? 1 : 5;
+
+            if (isWritten) {
+                isRight = (userAns === realAns && userAns !== "");
+                if (isRight) earnedScoreSum += 1;
+            } else {
+                const userParts = userAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+                const realParts = realAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+                let matchedCount = 0;
+
+                realParts.forEach(rp => {
+                    if (userParts.includes(rp)) matchedCount++;
+                });
+
+                if (realParts.length > 0 && matchedCount === realParts.length) {
+                    isRight = true;
+                    earnedScore = 5;
+                } else if (matchedCount > 0 && realParts.length > 1) {
+                    earnedScore = Math.floor((matchedCount / realParts.length) * 5 * 10) / 10;
+                }
+                earnedScoreSum += earnedScore;
+            }
+
+            return {
+                id: q.id,
+                type: q.type,
+                source: q.source,
+                text: q.text,
+                view: q.view || null,
+                choices: q.choices || null,
+                userAnswer: userAns,
+                realAnswer: realAns,
+                desc: q.desc,
+                image: q.image || null,
+                isRight: isRight,
+                earnedScore: earnedScore,
+                maxScore: maxScore
+            };
+        });
+
+        const totalQuestions = questions.length;
+        let finalScore = 0;
+
+        if (isWritten) {
+            finalScore = totalQuestions > 0 ? Math.round((earnedScoreSum / totalQuestions) * 100) : 0;
+        } else {
+            const totalMaxScore = totalQuestions * 5;
+            finalScore = totalMaxScore > 0 ? Math.round((earnedScoreSum / totalMaxScore) * 100 * 10) / 10 : 0;
+        }
+
+        const isPassed = (finalScore >= 60 && !isGwarak);
+
+        res.json({
+            score: finalScore,
+            total: totalQuestions,
+            isPassed: isPassed,
+            isGwarak: isGwarak,
+            gwarakSubjects: gwarakSubjects,
+            reviewData: reviewData,
+            quizLabel: session.quizLabel
+        });
+    } catch (e) {
+        console.error("채점 제출 오류:", e);
+        res.status(500).json({ error: "채점 처리 중 오류가 발생했습니다." });
+    }
+});
+
+// 5. 문제 / 정답 / 해설 검색 API
+app.get('/api/quiz/search', (req, res) => {
+    try {
+        const query = (req.query.query || req.query.answer || '').trim().toLowerCase();
+        const type = req.query.type || 'practical';
+        const field = req.query.field || 'answer';
+
+        if (!query) return res.json([]);
+
+        const isWritten = (type === 'written');
+        const dataPath = isWritten 
+            ? path.join(__dirname, 'data', 'written.json') 
+            : path.join(__dirname, 'data', 'practical.json');
+        
+        let questions = [];
+        if (fs.existsSync(dataPath)) {
+            questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        }
+
+        const filtered = questions.filter(q => {
+            if (isWritten) {
+                if (field === 'desc') {
+                    return q.desc && q.desc.toLowerCase().includes(query);
+                } else {
+                    let choiceAnswerText = '';
+                    if (q.choices && Array.isArray(q.choices)) {
+                        const ansIdx = parseInt(q.answer, 10) - 1;
+                        if (q.choices[ansIdx]) {
+                            choiceAnswerText = String(q.choices[ansIdx]).toLowerCase();
+                        }
+                    }
+                    const rawAnswer = String(q.answer || '').toLowerCase();
+                    return choiceAnswerText.includes(query) || rawAnswer.includes(query);
+                }
+            } else {
+                if (field === 'text') {
+                    return q.text && q.text.toLowerCase().includes(query);
+                } else {
+                    return q.answer && String(q.answer).toLowerCase().includes(query);
+                }
+            }
+        });
+
+        res.json(filtered);
+    } catch (e) {
+        console.error("검색 오류:", e);
+        res.status(500).json({ error: "검색 중 오류가 발생했습니다." });
+    }
+});
+
+// 6. 의견 제보 API
+app.post('/api/feedback', (req, res) => {
+    try {
+        const { appMode, message, fingerprint } = req.body;
+        if (!message || !message.trim()) {
+            return res.status(400).json({ error: "내용을 입력해 주세요." });
+        }
+
+        const stmt = db.prepare("INSERT INTO feedback (app_mode, message, fingerprint) VALUES (?, ?, ?)");
+        stmt.run(appMode || "common", message.trim(), fingerprint || "UNKNOWN");
         res.json({ success: true });
-    });
+    } catch (e) {
+        console.error("제보 등록 오류:", e);
+        res.status(500).json({ error: "제보 접수 중 오류가 발생했습니다." });
+    }
 });
 
-app.post('/api/admin/unban', (req, res) => {
-    const { ip, fp } = req.body;
-    db.run("DELETE FROM banned_users WHERE target_value = ? OR target_value = ?", [ip, fp], function(err) {
-        if (err) return res.status(500).json({ error: "차단 해제 실패" });
+// 7. 사용자 활동 로그 수집 API
+app.post('/api/log', (req, res) => {
+    try {
+        const { fingerprint, action, detail } = req.body;
+        if (!fingerprint || !action) {
+            return res.status(400).json({ error: "필수 정보가 누락되었습니다." });
+        }
+        const stmt = db.prepare("INSERT INTO activity_logs (fingerprint, action, detail) VALUES (?, ?, ?)");
+        stmt.run(fingerprint, action, JSON.stringify(detail || {}));
         res.json({ success: true });
-    });
+    } catch (e) {
+        console.error("로그 수집 오류:", e);
+        res.status(500).json({ error: "활동 로그 저장 실패" });
+    }
 });
 
-app.listen(port, () => {
-    console.log(`서버가 포트 ${port}에서 가동 중입니다.`);
+// 8. 관리자 통계 조회 API
+const ADMIN_PASSWORD = "admin1234";
+
+app.get('/api/admin/stats', (req, res) => {
+    const auth = req.headers['x-admin-key'] || req.query.key;
+    if (auth !== ADMIN_PASSWORD) {
+        return res.status(401).json({ error: "관리자 인증 실패" });
+    }
+
+    try {
+        const todayDauRow = db.prepare(`
+            SELECT COUNT(DISTINCT fingerprint) AS cnt 
+            FROM activity_logs 
+            WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
+        `).get();
+
+        const liveUsersRow = db.prepare(`
+            SELECT COUNT(DISTINCT fingerprint) AS cnt 
+            FROM activity_logs 
+            WHERE created_at >= datetime('now', '-10 minutes')
+        `).get();
+
+        const totalUsersRow = db.prepare(`
+            SELECT COUNT(DISTINCT fingerprint) AS cnt 
+            FROM activity_logs
+        `).get();
+
+        const todayActionsRow = db.prepare(`
+            SELECT COUNT(*) AS cnt 
+            FROM activity_logs 
+            WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
+        `).get();
+
+        const featureStats = db.prepare(`
+            SELECT action, COUNT(*) AS total_calls, COUNT(DISTINCT fingerprint) AS unique_users
+            FROM activity_logs 
+            WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
+            GROUP BY action 
+            ORDER BY total_calls DESC
+        `).all();
+
+        const recentUsers = db.prepare(`
+            SELECT fingerprint, COUNT(*) AS total_events, 
+                   MAX(datetime(created_at, '+9 hours')) AS last_active 
+            FROM activity_logs 
+            GROUP BY fingerprint 
+            ORDER BY last_active DESC 
+            LIMIT 30
+        `).all();
+
+        res.json({
+            todayDau: todayDauRow.cnt,
+            liveUsers: liveUsersRow.cnt,
+            totalUsers: totalUsersRow.cnt,
+            todayActions: todayActionsRow.cnt,
+            featureStats: featureStats,
+            recentUsers: recentUsers
+        });
+    } catch (e) {
+        console.error("관리자 통계 오류:", e);
+        res.status(500).json({ error: "통계 데이터 산출 실패" });
+    }
+});
+
+// 9. 개별 사용자 상세 타임라인 API
+app.get('/api/admin/user-detail', (req, res) => {
+    const auth = req.headers['x-admin-key'] || req.query.key;
+    if (auth !== ADMIN_PASSWORD) {
+        return res.status(401).json({ error: "관리자 인증 실패" });
+    }
+
+    const { fp } = req.query;
+    if (!fp) return res.status(400).json({ error: "식별자가 누락되었습니다." });
+
+    try {
+        const logs = db.prepare(`
+            SELECT action, detail, datetime(created_at, '+9 hours') AS kst_time 
+            FROM activity_logs 
+            WHERE fingerprint = ? 
+            ORDER BY created_at DESC 
+            LIMIT 100
+        `).all();
+
+        const summary = db.prepare(`
+            SELECT action, COUNT(*) AS cnt 
+            FROM activity_logs 
+            WHERE fingerprint = ? 
+            GROUP BY action 
+            ORDER BY cnt DESC
+        `).all();
+
+        res.json({ logs, summary });
+    } catch (e) {
+        console.error("사용자 상세 조회 오류:", e);
+        res.status(500).json({ error: "사용자 활동 내역 조회 실패" });
+    }
+});
+
+// 서버 구동
+app.listen(PORT, () => {
+    console.log(`서버가 포트 ${PORT}에서 정상 구동 중입니다.`);
 });
