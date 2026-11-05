@@ -1330,3 +1330,197 @@ body {
     color: #0b1120;
     font-weight: 800;
 }
+
+
+/* ──────────────────────────────────────────────────────────
+   해설(Explanation) 전문 가시성 강화 및 카드형 레이아웃 스타일
+   ────────────────────────────────────────────────────────── */
+.explanation-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-main);
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    margin-top: 4px;
+}
+
+/* 정답 핵심 리드 블록 */
+.desc-lead-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background-color: var(--bg-card);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.desc-lead-badge {
+    align-self: flex-start;
+    padding: 3px 9px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #15803d;
+    background-color: #dcfce7;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    letter-spacing: -0.2px;
+}
+
+.desc-lead-text {
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.65;
+    color: var(--text-main);
+}
+
+.desc-main-paragraph {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-main);
+    padding: 2px 0;
+}
+
+/* 섹션 그룹 (오답 풀이 / 보충 개념) */
+.desc-section-group {
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.desc-wrong-group {
+    background-color: rgba(239, 68, 68, 0.04);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.desc-concept-group {
+    background-color: rgba(2, 132, 199, 0.04);
+    border-color: rgba(2, 132, 199, 0.2);
+}
+
+/* 섹션 헤더 배지 */
+.desc-section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.desc-section-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 12px;
+    letter-spacing: -0.2px;
+}
+
+.badge-wrong {
+    color: #dc2626;
+    background-color: #fee2e2;
+    border: 1px solid #fca5a5;
+}
+
+.badge-concept {
+    color: #0284c7;
+    background-color: #e0f2fe;
+    border: 1px solid #bae6fd;
+}
+
+/* 선택지별 오답 항목 (1번, 2번 등) */
+.desc-choice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 9px;
+    background-color: var(--bg-card);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    line-height: 1.55;
+}
+
+.desc-num-chip {
+    flex-shrink: 0;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #b91c1c;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 4px;
+    margin-top: 1px;
+}
+
+.desc-choice-text {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--text-main);
+    line-height: 1.55;
+}
+
+/* 보충 개념 텍스트 */
+.desc-concept-line {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-main);
+    padding: 8px 10px;
+    background-color: var(--bg-card);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.desc-plain-line {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-main);
+    padding: 2px 0;
+}
+
+/* 다크모드 대응 */
+[data-theme="dark"] .desc-lead-block,
+[data-theme="dark"] .desc-choice-item,
+[data-theme="dark"] .desc-concept-line {
+    background-color: var(--bg-sub-box);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .desc-wrong-group {
+    background-color: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="dark"] .desc-concept-group {
+    background-color: rgba(2, 132, 199, 0.08);
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="dark"] .badge-wrong {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+[data-theme="dark"] .badge-concept {
+    background-color: rgba(2, 132, 199, 0.2);
+    color: #38bdf8;
+    border-color: rgba(2, 132, 199, 0.4);
+}
+
+[data-theme="dark"] .desc-num-chip {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="dark"] .desc-lead-badge {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+}
