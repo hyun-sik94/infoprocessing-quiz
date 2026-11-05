@@ -6,3 +6,10 @@ server_data_bak
 practical.bak_20261019
 preview.html
 fix.js
+
+# Database and SQLite runtime files
+feedback.db*
+
+# Backup files
+*.bak
+*.bak_*

@@ -10,12 +10,198 @@ let globalTabState = "all";
 
 let currentAppMode = null; 
 let activeInputRef = null;
+let currentCertType = 'qnet'; // 기본값 정보처리기사 고정
+
+// 2종 자격증 메타데이터 (SQLD 배제)
+const CERT_METAS = {
+    qnet: {
+        id: "qnet",
+        name: "정보처리기사",
+        badge: "2026 합격 케어 패스",
+        sub: "목표하시는 시험 단계를 선택하고<br>맞춤형 학습을 시작하세요.",
+        writtenTag: "객관식 5과목",
+        writtenTitle: "필기 모드",
+        writtenDesc: "100문항 CBT 실전 테스트 & 과목별 기출",
+        practicalTag: "주관식 / 단답형",
+        practicalTitle: "실기 모드",
+        practicalDesc: "부분점수 채점 & 핵심 용어 검색",
+        hasPractical: true
+    },
+    net2: {
+        id: "net2",
+        name: "네트워크관리사 2급",
+        badge: "국가공인 민간자격 필기 집중",
+        sub: "네트워크관리사 2급 필기 기출문제를 풀이하고<br>실시간 자동 채점을 확인하세요.",
+        writtenTag: "객관식 4과목",
+        writtenTitle: "필기 모드",
+        writtenDesc: "50문항 CBT 실전 테스트 & 19개 회차 풀이",
+        practicalTag: "주관식 / 실무 (준비중)",
+        practicalTitle: "실기 모드",
+        practicalDesc: "네트워크관리사 2급 실기 모드는 준비 중입니다",
+        hasPractical: false
+    }
+};
+
+// 자격증 유형별 동적 키/경로 헬퍼
+function getBookmarkKey() { return currentCertType === 'net2' ? 'net2_즐겨찾기_목록' : '정처기_즐겨찾기_목록'; }
+function getHistoryKey() { return currentCertType === 'net2' ? 'net2_이력_목록' : '정처기_이력_목록'; }
+function getSeqSaveKey() { return currentCertType === 'net2' ? 'net2_순차풀이_중간저장' : '정처기_순차풀이_중간저장'; }
+function getApiBase() { return currentCertType === 'net2' ? '/api/net2' : '/api/quiz'; }
+function getCertTitle() { return CERT_METAS[currentCertType] ? CERT_METAS[currentCertType].name : '정보처리기사'; }
 
 let quizTimerInterval = null;
 let remainingTimeSeconds = 0;
 
 const BOOKMARK_KEY = "정처기_즐겨찾기_목록";
 const HISTORY_KEY = "정처기_이력_목록";
+
+// 2026년 정기 기사 3회 시험 일정 데이터
+const QNET_EXAM_SCHEDULE = {
+    title: "2026년 정기 기사 3회",
+    written: {
+        apply: "2026.07.20 ~ 2026.07.23",
+        extraApply: "2026.08.01 ~ 2026.08.02",
+        start: "2026-08-07",
+        end: "2026-09-01",
+        displayPeriod: "2026.08.07 ~ 2026.09.01",
+        passDate: "2026.09.09"
+    },
+    practical: {
+        apply: "2026.09.21 ~ 2026.09.28",
+        extraApply: "2026.10.18 ~ 2026.10.19",
+        start: "2026-10-24",
+        end: "2026-11-13",
+        displayPeriod: "2026.10.24 ~ 2026.11.13",
+        passDate: "2026.12.18"
+    }
+};
+
+// 테마 토글 및 초기화 함수
+function initTheme() {
+    const saved = localStorage.getItem("cbt_theme") || "light";
+    document.documentElement.setAttribute("data-theme", saved);
+    updateThemeButtonUI(saved);
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    const next = (current === "dark") ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("cbt_theme", next);
+    updateThemeButtonUI(next);
+    logUserAction("THEME_TOGGLE", { theme: next });
+}
+
+function updateThemeButtonUI(theme) {
+    const btn = document.getElementById("theme-toggle-btn");
+    if (btn) {
+        btn.innerHTML = (theme === "dark") ? "☀️" : "🌙";
+        btn.setAttribute("title", (theme === "dark") ? "라이트 모드로 전환" : "다크 모드로 전환");
+    }
+}
+
+// D-Day 계산 헬퍼 함수
+function getExamDDayInfo() {
+    const targetSchedule = (currentAppMode === "written") ? QNET_EXAM_SCHEDULE.written : QNET_EXAM_SCHEDULE.practical;
+    const modeName = (currentAppMode === "written") ? "필기 시험" : "실기 시험";
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const startDate = new Date(targetSchedule.start);
+    const endDate = new Date(targetSchedule.end);
+    
+    const diffTime = startDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    let badgeText = "";
+    let descText = "";
+    
+    if (diffDays > 0) {
+        badgeText = `D-${diffDays}`;
+        descText = `${diffDays}일 남음`;
+    } else if (today >= startDate && today <= endDate) {
+        badgeText = "진행중";
+        descText = "시험 기간";
+    } else if (diffDays === 0) {
+        badgeText = "D-DAY";
+        descText = "시험 당일";
+    } else {
+        badgeText = "종료";
+        descText = "시험 종료";
+    }
+    
+    return {
+        badgeText: badgeText,
+        descText: descText,
+        examName: `${QNET_EXAM_SCHEDULE.title} ${modeName}`,
+        period: targetSchedule.displayPeriod,
+        passDate: targetSchedule.passDate,
+        schedule: targetSchedule
+    };
+}
+
+function updateHeaderDDayBadge() {
+    const badge = document.getElementById("header-dday-badge");
+    if (!badge) return;
+    
+    if (!currentAppMode || currentCertType === 'net2') {
+        badge.style.display = "none";
+        return;
+    }
+    
+    badge.style.display = "inline-flex";
+    const info = getExamDDayInfo();
+    badge.innerText = `${info.badgeText}`;
+}
+
+// Q-Net 시험 일정 모달 제어
+function openScheduleModal() {
+    const modal = document.getElementById("schedule-modal");
+    const body = document.getElementById("schedule-modal-body");
+    if (!modal || !body) return;
+    
+    const ddayInfo = getExamDDayInfo();
+    
+    body.innerHTML = `
+        <div style="text-align:center; padding:10px 0 14px 0; border-bottom:1px solid var(--border-color);">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:700;">현재 목표 시험</div>
+            <div style="font-size:18px; font-weight:900; color:var(--text-title); margin:3px 0;">${ddayInfo.examName}</div>
+            <div style="display:inline-block; margin-top:6px; padding:4px 12px; background-color:var(--dday-badge-bg); color:var(--dday-badge-text); border-radius:14px; font-weight:800; font-size:13px;">
+                ${ddayInfo.badgeText} (${ddayInfo.descText})
+            </div>
+        </div>
+
+        <div class="schedule-card-row">
+            <div class="schedule-badge-title">
+                <span>📝 2026년 정기 기사 3회 [필기]</span>
+                <span style="font-size:11px; color:#2563eb;">8월 시험</span>
+            </div>
+            <div class="schedule-item-line"><strong>원서접수:</strong> ${QNET_EXAM_SCHEDULE.written.apply}</div>
+            <div class="schedule-item-line"><strong>빈자리접수:</strong> ${QNET_EXAM_SCHEDULE.written.extraApply}</div>
+            <div class="schedule-item-line"><strong>시험일정:</strong> ${QNET_EXAM_SCHEDULE.written.displayPeriod}</div>
+            <div class="schedule-item-line"><strong>합격발표:</strong> ${QNET_EXAM_SCHEDULE.written.passDate}</div>
+        </div>
+
+        <div class="schedule-card-row">
+            <div class="schedule-badge-title">
+                <span>💻 2026년 정기 기사 3회 [실기]</span>
+                <span style="font-size:11px; color:#16a34a;">10월 시험</span>
+            </div>
+            <div class="schedule-item-line"><strong>원서접수:</strong> ${QNET_EXAM_SCHEDULE.practical.apply}</div>
+            <div class="schedule-item-line"><strong>빈자리접수:</strong> ${QNET_EXAM_SCHEDULE.practical.extraApply}</div>
+            <div class="schedule-item-line"><strong>시험일정:</strong> ${QNET_EXAM_SCHEDULE.practical.displayPeriod}</div>
+            <div class="schedule-item-line"><strong>최종발표:</strong> ${QNET_EXAM_SCHEDULE.practical.passDate}</div>
+        </div>
+    `;
+    
+    modal.style.display = "flex";
+}
+
+function closeScheduleModal(event) {
+    const modal = document.getElementById("schedule-modal");
+    if (modal) modal.style.display = "none";
+}
 
 // 사용자 활동 로그 비동기 전송 함수 (SQLite 연동)
 function logUserAction(action, detail = {}) {
@@ -57,7 +243,10 @@ function formatViewHtml(view) {
         text = text.substring(0, bogiMatch.index).trim();
         
         let bogiItems = bogiRaw.split(/[\n\|]|\s+\/\s+/).map(s => s.trim().replace(/^[•·\-\*]\s*/, '')).filter(s => s.length > 0);
-        let chips = bogiItems.map(item => `<span class="view-bogi-chip">${item}</span>`).join('');
+        let chips = bogiItems.map(item => {
+            const safeVal = item.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            return `<span class="view-bogi-chip" onclick="handleChoiceClick('${safeVal}')">${item}</span>`;
+        }).join('');
 
         if (chips) {
             bogiHtml = `
@@ -102,7 +291,6 @@ function formatViewHtml(view) {
         if (lines.length === 0) return;
 
         let blockContent = lines.join('\n');
-
         let isSourceCode = /int\s+Main|#include|public\s+class|class\s+\w+|void\s+\w+|return\s+\d+|while\s*\(|if\s*\(/i.test(blockContent);
         let isFlowChart = lines.some(l => l.includes('->') || l.includes('→')) && lines.some(l => l.includes('[') || l.includes('<'));
 
@@ -189,7 +377,6 @@ function buildHtmlTable(rows) {
             }
 
             let isPureSymbol = /^(\(\s*[①-⑮\dㄱ-ㅎa-zA-Z]?\s*\)|[①-⑮])$/.test(cellStr.trim());
-
             let alignClass = 'col-content';
             let inlineStyle = '';
 
@@ -229,7 +416,6 @@ function formatQuestionView(rawText) {
     }
 
     let firstBreakIndex = cleanedText.indexOf("\n");
-
     if (firstBreakIndex === -1) {
         return `<div class="q-title-instruction" id="question-focus-target" tabindex="-1" style="outline: none;">${highlightBlanks(cleanedText)}</div>`;
     }
@@ -282,12 +468,12 @@ function parseSecurePayload(data) {
 }
 
 function getBookmarkedQuestions() {
-    const data = localStorage.getItem(BOOKMARK_KEY);
+    const data = localStorage.getItem(getBookmarkKey());
     return data ? JSON.parse(data) : [];
 }
 
 function getHistoryLogs() {
-    const data = localStorage.getItem(HISTORY_KEY);
+    const data = localStorage.getItem(getHistoryKey());
     return data ? JSON.parse(data) : [];
 }
 
@@ -295,20 +481,9 @@ function deleteHistoryLog(logId) {
     if (confirm("해당 풀이 기록을 삭제하시겠습니까?")) {
         let history = getHistoryLogs();
         history = history.filter(h => h.id !== logId);
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        localStorage.setItem(getHistoryKey(), JSON.stringify(history));
         fetchHistoryLogs();
     }
-}
-
-// 회차별 최근 시험 점수 조회 헬퍼
-function getRecentExamInfo(matchKeyword) {
-    const logs = getHistoryLogs().filter(log => log.type === currentAppMode);
-    const matched = [...logs].reverse().find(log => (log.quizLabel && log.quizLabel.includes(matchKeyword)));
-    if (matched) {
-        const isPass = (matched.score / matched.total >= 0.6);
-        return `${matched.score}점 (${isPass ? '합격' : '불합격'})`;
-    }
-    return "미응시";
 }
 
 // 학습 데이터 백업 (JSON 파일 다운로드)
@@ -316,7 +491,7 @@ function exportBackupData() {
     logUserAction("BACKUP_DATA");
     const bookmarks = getBookmarkedQuestions();
     const history = getHistoryLogs();
-    const seqRaw = localStorage.getItem("정처기_순차풀이_중간저장");
+    const seqRaw = localStorage.getItem(getSeqSaveKey());
     const sequentialState = seqRaw ? JSON.parse(seqRaw) : null;
 
     if (bookmarks.length === 0 && history.length === 0 && !sequentialState) {
@@ -325,7 +500,7 @@ function exportBackupData() {
     }
 
     const backupPayload = {
-        app: "정처기 스마트 기출 풀이",
+        app: getCertTitle() + " 스마트 기출 풀이",
         version: "2026.10",
         exportedAt: new Date().toLocaleString('ko-KR'),
         bookmarks: bookmarks,
@@ -342,7 +517,8 @@ function exportBackupData() {
     const dd = String(now.getDate()).padStart(2, '0');
 
     a.href = url;
-    a.download = `정처기_학습데이터_백업_${yyyy}${mm}${dd}.json`;
+    const certPrefix = currentCertType === 'net2' ? 'net2' : '정처기';
+    a.download = `${certPrefix}_학습데이터_백업_${yyyy}${mm}${dd}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -366,7 +542,7 @@ function importBackupData(event) {
         try {
             const data = JSON.parse(e.target.result);
             if (!data || (!Array.isArray(data.bookmarks) && !Array.isArray(data.history))) {
-                alert("올바른 정처기 학습 백업 파일 형식이 아닙니다.");
+                alert("올바른 학습 백업 파일 형식이 아닙니다.");
                 return;
             }
 
@@ -374,18 +550,16 @@ function importBackupData(event) {
             const historyCount = Array.isArray(data.history) ? data.history.length : 0;
 
             const confirmMsg = `백업 파일 정보를 확인했습니다.\n- 즐겨찾기: ${bookmarkCount}건\n- 풀이 이력: ${historyCount}건\n\n현재 기기의 데이터를 백업 파일 내용으로 복원하시겠습니까?`;
-            if (!confirm(confirmMsg)) {
-                return;
-            }
+            if (!confirm(confirmMsg)) return;
 
             if (Array.isArray(data.bookmarks)) {
-                localStorage.setItem(BOOKMARK_KEY, JSON.stringify(data.bookmarks));
+                localStorage.setItem(getBookmarkKey(), JSON.stringify(data.bookmarks));
             }
             if (Array.isArray(data.history)) {
-                localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+                localStorage.setItem(getHistoryKey(), JSON.stringify(data.history));
             }
             if (data.sequentialState) {
-                localStorage.setItem("정처기_순차풀이_중간저장", JSON.stringify(data.sequentialState));
+                localStorage.setItem(getSeqSaveKey(), JSON.stringify(data.sequentialState));
             }
 
             logUserAction("RESTORE_DATA", { bookmarks: bookmarkCount, history: historyCount });
@@ -408,7 +582,7 @@ function toggleBookmarkStatus(questionObj) {
     } else {
         bookmarks.push(questionObj);
     }
-    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
+    localStorage.setItem(getBookmarkKey(), JSON.stringify(bookmarks));
     
     if (activeSessionId) {
         renderSingleQuestion();
@@ -444,7 +618,7 @@ function updateBottomTabUI() {
     }
 }
 
-function switchMainTab(tabType) {
+function switchMainTab(tabType, isPopstate = false) {
     globalTabState = tabType;
     updateBottomTabUI();
     
@@ -452,7 +626,7 @@ function switchMainTab(tabType) {
         if (activeSessionId) {
             renderSingleQuestion();
         } else {
-            loadMainDashboard();
+            loadMainDashboard(isPopstate);
         }
     } else if (tabType === 'my') {
         if (activeSessionId) {
@@ -464,14 +638,14 @@ function switchMainTab(tabType) {
                 activeSessionId = null;
                 activeSessionYear = null;
                 activeSessionType = null;
-                history.replaceState(null, '', window.location.pathname);
+                if (!isPopstate) history.pushState({ screen: 'tab', tab: 'my', cert: currentCertType, mode: currentAppMode }, '');
                 renderMyBookmarksTab();
             } else {
                 globalTabState = 'all';
                 updateBottomTabUI();
             }
         } else {
-            history.replaceState(null, '', window.location.pathname);
+            if (!isPopstate) history.pushState({ screen: 'tab', tab: 'my', cert: currentCertType, mode: currentAppMode }, '');
             renderMyBookmarksTab();
         }
     } else if (tabType === 'analysis') {
@@ -484,24 +658,26 @@ function switchMainTab(tabType) {
                 activeSessionId = null;
                 activeSessionYear = null;
                 activeSessionType = null;
-                history.replaceState(null, '', window.location.pathname);
+                if (!isPopstate) history.pushState({ screen: 'tab', tab: 'analysis', cert: currentCertType, mode: currentAppMode }, '');
                 renderAnalysisTab();
             } else {
                 globalTabState = 'all';
                 updateBottomTabUI();
             }
         } else {
-            history.replaceState(null, '', window.location.pathname);
+            if (!isPopstate) history.pushState({ screen: 'tab', tab: 'analysis', cert: currentCertType, mode: currentAppMode }, '');
             renderAnalysisTab();
         }
     }
 }
 
 function switchAppMode() {
+    if (currentCertType === 'net2') {
+        alert("네트워크관리사 2급은 현재 필기 모드만 지원됩니다.\n(실기 모드는 추후 업데이트 예정입니다)");
+        return;
+    }
     if (activeSessionId) {
-        if (!confirm("현재 진행 중인 시험 내역이 초기화됩니다. 모드를 전환하시겠습니까?")) {
-            return;
-        }
+        if (!confirm("현재 진행 중인 시험 내역이 초기화됩니다. 모드를 전환하시겠습니까?")) return;
     }
     clearInterval(quizTimerInterval);
     activeSessionId = null;
@@ -514,20 +690,43 @@ function switchAppMode() {
     globalTabState = 'all';
     
     updateBottomTabUI();
+    updateHeaderDDayBadge();
     loadMainDashboard();
 }
 
-function setAppMode(mode) {
+function setAppMode(mode, isPopstate = false) {
     currentAppMode = mode;
-    logUserAction("MODE_SELECT", { mode: mode });
+    logUserAction("MODE_SELECT", { mode: mode, cert: currentCertType });
     globalTabState = 'all';
+    if (!isPopstate) {
+        history.pushState({ screen: 'dashboard', mode: mode, cert: currentCertType }, '', `?mode=${mode}&cert=${currentCertType}`);
+    }
     updateBottomTabUI();
-    loadMainDashboard();
+    updateHeaderDDayBadge();
+    loadMainDashboard(isPopstate);
 }
 
-function loadModeSelectionScreen() {
+function switchCertification(type) {
+    if (currentCertType === type) return;
+    currentCertType = type;
+    logUserAction("CERT_SWITCH", { cert: type });
+    loadModeSelectionScreen();
+}
+
+function handlePracticalCardClick() {
+    const meta = CERT_METAS[currentCertType] || CERT_METAS.qnet;
+    if (!meta.hasPractical) {
+        alert("네트워크관리사 2급 실기 모드는 현재 준비 중입니다.\n(필기 모드를 이용해 주세요)");
+        return;
+    }
+    setAppMode('practical');
+}
+
+function loadModeSelectionScreen(isPopstate = false) {
     clearInterval(quizTimerInterval);
-    history.replaceState(null, '', window.location.pathname);
+    if (!isPopstate) {
+        history.replaceState({ screen: 'main', cert: currentCertType }, '', window.location.pathname);
+    }
     document.querySelector(".tab-fixed-bar").style.display = "none";
     document.querySelector(".header").style.display = "none";
     currentAppMode = null;
@@ -537,12 +736,21 @@ function loadModeSelectionScreen() {
     
     logUserAction("MAIN_PAGE_VIEW");
     
+    const meta = CERT_METAS[currentCertType] || CERT_METAS.qnet;
+    const isQnet = (currentCertType === 'qnet');
+    
     const container = document.getElementById("view-renderer");
     container.innerHTML = `
         <div class="mode-select-container">
-            <div class="hero-badge">2026 합격 케어 패스</div>
-            <h1 class="hero-title">정보처리기사<br>스마트 기출 풀이</h1>
-            <p class="hero-sub">목표하시는 시험 단계를 선택하고<br>맞춤형 학습을 시작하세요.</p>
+            <!-- 상단 2종 캡슐 칩 스위처 (A안) -->
+            <div class="cert-chip-container">
+                <div class="cert-chip ${isQnet ? 'active' : ''}" onclick="switchCertification('qnet')">정보처리기사</div>
+                <div class="cert-chip ${!isQnet ? 'active' : ''}" onclick="switchCertification('net2')">네트워크관리사 2급</div>
+            </div>
+
+            <div class="hero-badge">${meta.badge}</div>
+            <h1 class="hero-title">${meta.name}<br>스마트 기출 풀이</h1>
+            <p class="hero-sub">${meta.sub}</p>
             
             <div class="mode-card-group">
                 <div class="modern-mode-card written" onclick="setAppMode('written')">
@@ -550,21 +758,21 @@ function loadModeSelectionScreen() {
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.2 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                     </div>
                     <div class="card-content">
-                        <div class="card-tag written-tag">객관식 5과목</div>
-                        <div class="card-title">필기 모드</div>
-                        <div class="card-desc">100문항 CBT 실전 테스트 & 과목별 기출</div>
+                        <div class="card-tag written-tag">${meta.writtenTag}</div>
+                        <div class="card-title">${meta.writtenTitle}</div>
+                        <div class="card-desc">${meta.writtenDesc}</div>
                     </div>
                     <div class="card-arrow">➔</div>
                 </div>
                 
-                <div class="modern-mode-card practical" onclick="setAppMode('practical')">
+                <div class="modern-mode-card practical" onclick="handlePracticalCardClick()">
                     <div class="card-icon-wrapper practical-bg">
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                     </div>
                     <div class="card-content">
-                        <div class="card-tag practical-tag">주관식 / 단답형</div>
-                        <div class="card-title">실기 모드</div>
-                        <div class="card-desc">부분점수 채점 & 핵심 용어 검색</div>
+                        <div class="card-tag practical-tag">${meta.practicalTag}</div>
+                        <div class="card-title">${meta.practicalTitle}</div>
+                        <div class="card-desc">${meta.practicalDesc}</div>
                     </div>
                     <div class="card-arrow">➔</div>
                 </div>
@@ -575,7 +783,7 @@ function loadModeSelectionScreen() {
                     <p class="brand-title">MakeSoft</p>
                     <p class="disclaimer-text">
                         본 서비스에서 제공하는 문제는 수험생 복원 데이터 및 출제 기준을 바탕으로 학습 편의를 위해 독자적으로 재구성된 자료입니다. 
-                        공식 출제기관(Q-Net 등)의 원문 시험지가 아니며, 실제 출제 문항과 일부 문장 표현에 차이가 있을 수 있습니다.
+                        공식 출제기관의 원문 시험지가 아니며, 실제 출제 문항과 일부 문장 표현에 차이가 있을 수 있습니다.
                     </p>
                     <p class="copyright-text">© 2026 MakeSoft. All rights reserved.</p>
                 </div>
@@ -585,6 +793,9 @@ function loadModeSelectionScreen() {
 }
 
 function getSubjectName(q) {
+    if (currentCertType === 'net2') {
+        return q.subject || "네트워크관리사 필기 공통";
+    }
     if (q.type === 'written') {
         const id = q.id;
         if (id >= 2001 && id <= 2020) return "1과목: 소프트웨어 설계";
@@ -606,6 +817,7 @@ function startSingleQuestionQuiz(qId) {
     triggerNewQuizSession('target', null, null, qId);
 }
 
+// 성과 분석 화면 (정상 평균/합격률 산출 로직 적용)
 function renderAnalysisTab() {
     const isWritten = (currentAppMode === 'written');
     document.getElementById("header-center-title").innerText = isWritten ? "필기 성과 분석" : "실기 성과 분석";
@@ -615,7 +827,7 @@ function renderAnalysisTab() {
     
     if (logs.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center; padding-top:60px; color:#94a3b8;">
+            <div style="text-align:center; padding-top:60px; color:var(--text-light);">
                 <div style="font-size:45px; margin-bottom:15px;">📊</div>
                 <p style="font-size:14px;">저장된 풀이 기록이 없습니다.<br>문제 풀이 후 성과 분석을 확인해 보세요!</p>
             </div>
@@ -634,6 +846,8 @@ function renderAnalysisTab() {
         const qCount = log.total || (log.questions ? log.questions.length : 0);
         totalScoreSum += log.score;
         totalQuestionSum += qCount;
+        
+        // 60점 이상 합격
         if (log.score >= 60) {
             passCount++;
         }
@@ -668,16 +882,16 @@ function renderAnalysisTab() {
         const subjectPercent = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
         
         let wrongList = Object.values(stat.wrongQuestions).sort((a, b) => b.count - a.count).slice(0, 3);
-        
         let wrongItemsHtml = "";
+
         if (wrongList.length > 0) {
             wrongItemsHtml = wrongList.map(w => `
-                <div style="font-size:12px; color:#c0392b; background:#fff; padding:8px 10px; border-radius:6px; margin-top:6px; border:1px solid #fadbd8; text-align:left; cursor:pointer;" onclick="startSingleQuestionQuiz(${w.id})">
+                <div style="font-size:12px; color:#c0392b; background:var(--bg-sub-box); padding:8px 10px; border-radius:6px; margin-top:6px; border:1px solid #fadbd8; text-align:left; cursor:pointer;" onclick="startSingleQuestionQuiz(${w.id})">
                     <div style="font-weight:bold; display:flex; justify-content:space-between;">
                         <span>[${w.source}] - ${w.count}회 오답</span>
-                        <span style="color:#3498db; text-decoration:underline;">[문제풀기 ➔]</span>
+                        <span style="color:var(--primary); text-decoration:underline;">[문제풀기 ➔]</span>
                     </div>
-                    <div style="color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${escapeHtml(w.text)}</div>
+                    <div style="color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${escapeHtml(w.text)}</div>
                 </div>
             `).join("");
         } else {
@@ -685,45 +899,45 @@ function renderAnalysisTab() {
         }
 
         subjectCardsHtml += `
-            <div class="log-box-card" style="border-top-color: #3498db; margin-bottom:15px;">
+            <div class="log-box-card" style="border-top-color: var(--primary); margin-bottom:15px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <span style="font-weight:bold; color:#2c3e50; font-size:15px;">${subjectName}</span>
-                    <span style="font-weight:bold; color:${subjectPercent >= 60 ? '#2ecc71' : '#e74c3c'}; font-size:15px;">${subjectPercent}%</span>
+                    <span style="font-weight:bold; color:var(--text-title); font-size:15px;">${subjectName}</span>
+                    <span style="font-weight:bold; color:${subjectPercent >= 60 ? '#10b981' : '#ef4444'}; font-size:15px;">${subjectPercent}%</span>
                 </div>
-                <div style="width:100%; background:#edf2f7; height:8px; border-radius:4px; overflow:hidden; margin-bottom:10px;">
-                    <div style="width:${subjectPercent}%; background:${subjectPercent >= 60 ? '#2ecc71' : '#e74c3c'}; height:100%;"></div>
+                <div style="width:100%; background:var(--border-color); height:8px; border-radius:4px; overflow:hidden; margin-bottom:10px;">
+                    <div style="width:${subjectPercent}%; background:${subjectPercent >= 60 ? '#10b981' : '#ef4444'}; height:100%;"></div>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:12px; color:#7f8c8d;">총 ${stat.total}문항 중 ${stat.correct}문항 맞춤</span>
-                    <button class="nav-control-btn" style="padding:6px 10px; font-size:12px; background-color:#3498db; width:auto;" onclick="startSubjectQuiz('${subjectName}')">이 과목만 풀기</button>
+                    <span style="font-size:12px; color:var(--text-muted);">총 ${stat.total}문항 중 ${stat.correct}문항 맞춤</span>
+                    <button class="nav-control-btn" style="padding:6px 10px; font-size:12px; background-color:var(--primary); width:auto;" onclick="startSubjectQuiz('${subjectName}')">이 과목만 풀기</button>
                 </div>
-                <div style="font-size:13px; font-weight:bold; color:#34495e; margin-top:10px; text-align:left;">해당 과목 자주 틀리는 취약 문제 (클릭 시 풀기)</div>
+                <div style="font-size:13px; font-weight:bold; color:var(--text-title); margin-top:10px; text-align:left;">해당 과목 자주 틀리는 취약 문제 (클릭 시 풀기)</div>
                 ${wrongItemsHtml}
             </div>
         `;
     });
 
     let html = `
-        <div style="padding-top:10px;">
-            <div style="background:#f8f9fa; border:1px solid #e2e8f0; border-radius:12px; padding:15px; margin-bottom:20px; text-align:center;">
-                <div style="font-weight:bold; color:#2c3e50; font-size:16px; margin-bottom:12px;">🏆 전체 누적 응시 리포트</div>
-                <div style="display:flex; justify-content:space-around; background:#fff; padding:12px; border-radius:8px; border:1px solid #edf2f7;">
+        <div style="padding-top:6px;">
+            <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:15px; margin-bottom:16px; text-align:center;">
+                <div style="font-weight:bold; color:var(--text-title); font-size:15.5px; margin-bottom:12px;">🏆 전체 누적 응시 리포트</div>
+                <div style="display:flex; justify-content:space-around; background:var(--bg-sub-box); padding:12px; border-radius:8px; border:1px solid var(--border-color);">
                     <div>
-                        <div style="font-size:11px; color:#7f8c8d;">총 응시 횟수</div>
-                        <div style="font-size:18px; font-weight:bold; color:#2c3e50;">${totalExamCount}회</div>
+                        <div style="font-size:11px; color:var(--text-muted);">총 응시 횟수</div>
+                        <div style="font-size:18px; font-weight:bold; color:var(--text-title);">${totalExamCount}회</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#7f8c8d;">평균 정답률</div>
-                        <div style="font-size:18px; font-weight:bold; color:#3498db;">${avgPercent}%</div>
+                        <div style="font-size:11px; color:var(--text-muted);">평균 정답률</div>
+                        <div style="font-size:18px; font-weight:bold; color:var(--primary);">${avgPercent}%</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#7f8c8d;">합격률</div>
-                        <div style="font-size:18px; font-weight:bold; color:#2ecc71;">${passPercent}%</div>
+                        <div style="font-size:11px; color:var(--text-muted);">합격률</div>
+                        <div style="font-size:18px; font-weight:bold; color:#10b981;">${passPercent}%</div>
                     </div>
                 </div>
             </div>
 
-            <h4 style="color:#34495e; border-bottom:2px solid #34495e; padding-bottom:5px; margin-bottom:15px;">과목별 정답률 및 취약 문제 분석</h4>
+            <h4 style="color:var(--text-title); border-bottom:2px solid var(--border-color); padding-bottom:6px; margin-bottom:14px; font-size:14px;">과목별 정답률 및 취약 문제 분석</h4>
             ${subjectCardsHtml}
         </div>
     `;
@@ -732,14 +946,15 @@ function renderAnalysisTab() {
     container.scrollTop = 0;
 }
 
-// 대시보드 렌더러 (실기: 연도별 선택 적용 / 문항수 제거)
-function loadMainDashboard() {
+// 대시보드 렌더러 (D-Day 배너 + 연도별 선택)
+function loadMainDashboard(isPopstate = false) {
     clearInterval(quizTimerInterval);
-    history.replaceState(null, '', window.location.pathname);
-
     if (!currentAppMode) {
-        loadModeSelectionScreen();
+        loadModeSelectionScreen(isPopstate);
         return;
+    }
+    if (!isPopstate) {
+        history.replaceState({ screen: 'dashboard', mode: currentAppMode, cert: currentCertType }, '', `?mode=${currentAppMode}&cert=${currentCertType}`);
     }
 
     document.querySelector(".tab-fixed-bar").style.display = "flex";
@@ -751,8 +966,12 @@ function loadMainDashboard() {
     activeInputRef = null;
     
     const isWritten = (currentAppMode === 'written');
-    document.getElementById("header-center-title").innerText = isWritten ? "필기 기출 메인" : "실기 기출 메인";
+    const certLabel = getCertTitle();
+    document.getElementById("header-center-title").innerText = isWritten ? certLabel + " 필기" : certLabel + " 실기";
+    updateHeaderDDayBadge();
+    
     const container = document.getElementById("view-renderer");
+    const ddayInfo = currentCertType === 'net2' ? null : getExamDDayInfo();
 
     const searchSectionTitle = isWritten ? "정답/해설에서 문제찾기" : "문제 / 정답으로 문제찾기";
     const selectOptionsHtml = isWritten ? `
@@ -765,6 +984,21 @@ function loadMainDashboard() {
     const defaultPlaceholder = isWritten ? "정답 용어/문구 입력" : "기억나는 정답 용어 입력";
 
     let dashboardHtml = `
+${(currentCertType === 'net2' || !ddayInfo) ? '' : `
+        <!-- D-Day 인터랙티브 카드 배너 (클릭 시 전체 일정 모달) -->
+        <div class="dashboard-dday-card" onclick="openScheduleModal()">
+            <div class="dday-left-info">
+                <span class="dday-sub-label">Q-Net 공인 시험 카운트다운</span>
+                <span class="dday-main-exam-name">${ddayInfo.examName}</span>
+                <span class="dday-date-range">시험기간: ${ddayInfo.period}</span>
+            </div>
+            <div class="dday-count-badge">
+                <span class="dday-count-num">${ddayInfo.badgeText}</span>
+                <span class="dday-count-desc">${ddayInfo.descText}</span>
+            </div>
+        </div>
+        `}
+
         <div class="dashboard-util-bar">
             <span class="input-label-text">${searchSectionTitle}</span>
             <div class="search-input-group">
@@ -785,14 +1019,14 @@ function loadMainDashboard() {
             <!-- 카드 1: 실전 모의고사 (랜덤 추출) -->
             <div class="feed-card">
                 <div class="feed-card-header">
-                    <span class="feed-badge">${isWritten ? '실전 CBT 100제' : '랜덤 모의 30제'}</span>
-                    <span class="feed-status-tag">${isWritten ? '전과목 무작위' : '핵심 30문항'}</span>
+                    <span class="feed-badge">${isWritten ? (currentCertType === 'net2' ? '실전 CBT 50제' : '실전 CBT 100제') : (currentCertType === 'net2' ? '랜덤 모의 20제' : '랜덤 모의 30제')}</span>
+                    <span class="feed-status-tag">${isWritten ? '전과목 무작위' : (currentCertType === 'net2' ? '핵심 20문항' : '핵심 30문항')}</span>
                 </div>
                 <div class="feed-card-main">
                     <div class="feed-thumb ${isWritten ? 'written' : 'practical'}">${isWritten ? '📝' : '💻'}</div>
                     <div class="feed-info">
-                        <div class="feed-title">${isWritten ? '필기 실전 모의고사 (100제)' : '실기 무작위 모의고사 (30제)'}</div>
-                        <div class="feed-desc">${isWritten ? '전체 필기 기출문제에서 100문항 무작위 추출' : '전체 실기 기출에서 무작위 30문항 추출'}</div>
+                        <div class="feed-title">${isWritten ? (currentCertType === 'net2' ? '필기 실전 모의고사 (50제)' : '필기 실전 모의고사 (100제)') : (currentCertType === 'net2' ? '실기 무작위 모의고사 (20제)' : '실기 무작위 모의고사 (30제)')}</div>
+                        <div class="feed-desc">${isWritten ? (currentCertType === 'net2' ? '전체 필기 기출문제에서 50문항 무작위 추출' : '전체 필기 기출문제에서 100문항 무작위 추출') : (currentCertType === 'net2' ? '전체 실기 기출에서 무작위 20문항 추출' : '전체 실기 기출에서 무작위 30문항 추출')}</div>
                     </div>
                 </div>
                 <button class="card-action-btn" onclick="triggerNewQuizSession('${isWritten ? 'cbt' : 'all'}')">랜덤 모의고사 시작 ➔</button>
@@ -814,7 +1048,7 @@ function loadMainDashboard() {
                 <select id="quiz-round-select" class="feed-select">
                     <option value="">${isWritten ? '데이터베이스에서 회차를 불러오는 중...' : '데이터베이스에서 연도를 불러오는 중...'}</option>
                 </select>
-                <button class="card-action-btn-green" onclick="startSelectedRoundQuiz()">${isWritten ? '선택 회차 문제풀기 시작 ➔' : '선택 연도 문제풀기 시작 ➔'}</button>
+                <button class="card-action-btn" onclick="startSelectedRoundQuiz()">${isWritten ? '선택 회차 문제풀기 시작 ➔' : '선택 연도 문제풀기 시작 ➔'}</button>
             </div>
 
             <!-- 카드 3: 전체 문항 순서대로 풀기 (누적 정복 모드) -->
@@ -835,9 +1069,9 @@ function loadMainDashboard() {
         </div>
 
         <div id="dashboard-dynamic-area">
-            <div onclick="toggleHistoryAreaVisibility()" style="border-left:4px solid #0f172a; padding-left:8px; font-weight:bold; color:#0f172a; font-size:14.5px; margin-bottom:12px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+            <div onclick="toggleHistoryAreaVisibility()" style="border-left:4px solid var(--primary); padding-left:8px; font-weight:bold; color:var(--text-title); font-size:14.5px; margin-bottom:12px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
                 <span>회차별 풀이 이력 및 오답확인</span>
-                <span id="history-toggle-arrow" style="font-size: 12px; margin-right: 6px; color: #64748b;">▼</span>
+                <span id="history-toggle-arrow" style="font-size: 12px; margin-right: 6px; color: var(--text-muted);">▼</span>
             </div>
             <div id="history-ajax-area">이력을 조회하는 중입니다...</div>
         </div>
@@ -856,17 +1090,15 @@ async function populateRoundSelectOptions() {
     const isWritten = (currentAppMode === 'written');
 
     try {
-        const res = await fetch(`/api/quiz/rounds?type=${currentAppMode}`);
+        const res = await fetch(`${getApiBase()}/rounds?type=${currentAppMode}`);
         const items = await res.json();
         
         if (items && items.length > 0) {
             if (isWritten) {
-                // 필기: 회차별 + 문항수 표시
                 selectElem.innerHTML = items.map(r => 
-                    `<option value="${r.name}">${r.name}</option>`
+                    `<option value="${r.name}">${r.name} (${r.count}문항)</option>`
                 ).join('');
             } else {
-                // 실기: 문항수 없이 연도만 표시
                 selectElem.innerHTML = items.map(r => 
                     `<option value="${r.name}">${r.name} 기출문제</option>`
                 ).join('');
@@ -944,7 +1176,7 @@ async function searchQuestionByAnswer() {
     }
     
     try {
-        const res = await fetch(`/api/quiz/search?query=${encodeURIComponent(query)}&answer=${encodeURIComponent(query)}&type=${currentAppMode}&field=${field}`);
+        const res = await fetch(`${getApiBase()}/search?query=${encodeURIComponent(query)}&answer=${encodeURIComponent(query)}&type=${currentAppMode}&field=${field}`);
         const rawData = await res.json();
         const data = parseSecurePayload(rawData);
         logUserAction("SEARCH", { mode: currentAppMode, field: field, query: query, resultCount: (data && data.length) || 0 });
@@ -974,14 +1206,14 @@ function renderSearchResults(results, query, field) {
     }
 
     let html = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px; border-left: 4px solid #0284c7; padding-left: 8px;">
-            <span style="font-weight: bold; color: #0f172a; font-size: 14px;">'${escapeHtml(query)}' ${fieldTitle} 검색 (총 ${results.length}건)</span>
-            <span style="font-size: 12px; color: #0284c7; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="loadMainDashboard()">이력 목록으로 복귀</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px; border-left: 4px solid var(--primary); padding-left: 8px;">
+            <span style="font-weight: bold; color: var(--text-title); font-size: 14px;">'${escapeHtml(query)}' ${fieldTitle} 검색 (총 ${results.length}건)</span>
+            <span style="font-size: 12px; color: var(--primary); cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="loadMainDashboard()">이력 목록으로 복귀</span>
         </div>
     `;
     
     if (results.length === 0) {
-        html += `<div style="text-align: center; color: #94a3b8; font-size: 13.5px; padding: 30px 0;">해당 ${fieldTitle}을(를) 포함하는 기출문제를 찾을 수 없습니다.</div>`;
+        html += `<div style="text-align: center; color: var(--text-light); font-size: 13.5px; padding: 30px 0;">해당 ${fieldTitle}을(를) 포함하는 기출문제를 찾을 수 없습니다.</div>`;
     } else {
         results.forEach((r, idx) => {
             const isBookmarked = isQuestionBookmarked(r.text);
@@ -998,14 +1230,14 @@ function renderSearchResults(results, query, field) {
             }
             
             html += `
-                <div class="log-box-card" style="border-top-color: #0284c7;">
+                <div class="log-box-card" style="border-top-color: var(--primary);">
                     <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px;" onclick="toggleBookmarkStatusFromSearch(${idx})">${starChar}</span>
                     <div class="source-tag">${modeText} ${r.source}</div>
                     <div class="question-title" style="font-size: 13.5px; padding-right: 25px; white-space: pre-wrap; line-height: 1.55; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
                     ${r.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
-                    <div style="font-size: 13px; color: #16a34a; font-weight: bold; margin-top: 5px;">출제 정답: ${answerDisplay}</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                    <div style="font-size: 13px; color: #10b981; font-weight: bold; margin-top: 5px;">출제 정답: ${answerDisplay}</div>
+                    <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-sub-box); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
                 </div>
             `;
         });
@@ -1044,7 +1276,7 @@ function renderMyBookmarksTab() {
     
     if (bookmarks.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center; padding-top:60px; color:#94a3b8;">
+            <div style="text-align:center; padding-top:60px; color:var(--text-light);">
                 <div style="font-size:45px; margin-bottom:15px;">⭐</div>
                 <p style="font-size:14px;">현재 모드에 보관된 즐겨찾기가 없습니다.</p>
             </div>
@@ -1064,7 +1296,7 @@ function renderMyBookmarksTab() {
     
     let html = `
         ${startButtonHtml}
-        <p style="font-size:12.5px; color:#64748b; margin-bottom:12px;">보관된 항목 총 ${bookmarks.length}개</p>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:12px;">보관된 항목 총 ${bookmarks.length}개</p>
     `;
     
     bookmarks.forEach((b, idx) => {
@@ -1086,8 +1318,8 @@ function renderMyBookmarksTab() {
                 <div class="question-title" style="font-size:13.5px; padding-right:25px; white-space: pre-wrap; line-height: 1.55; word-break: break-all;">${escapeHtml(b.text)}</div>
                 ${b.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="view-content-wrapper">${formatViewHtml(b.view)}</div>` : ''}
-                <div style="font-size:13px; color:#16a34a; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>
-                <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #f8f9fa; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                <div style="font-size:13px; color:#10b981; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-sub-box); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
             </div>
         `;
     });
@@ -1122,7 +1354,7 @@ function fetchHistoryLogs() {
     const data = getHistoryLogs().filter(log => log.type === currentAppMode);
     
     if (data.length === 0) {
-        area.innerHTML = "<p style='color:#94a3b8; font-size:13px;'>저장된 완료 기록이 없습니다.</p>";
+        area.innerHTML = "<p style='color:var(--text-light); font-size:13px;'>저장된 완료 기록이 없습니다.</p>";
         return;
     }
     
@@ -1138,14 +1370,14 @@ function fetchHistoryLogs() {
             <div class="log-box-card" style="position:relative;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <span style="display:inline-block; padding:3px 8px; font-size:11px; font-weight:bold; border-radius:6px; background-color: #f1f5f9; color: #0f172a; margin-bottom:4px;">${quizLabel}</span>
-                        <div style="font-size:11px; color:#94a3b8;">풀이 시점: ${s.date}</div>
+                        <span style="display:inline-block; padding:3px 8px; font-size:11px; font-weight:bold; border-radius:6px; background-color: var(--bg-sub-box); color: var(--text-title); margin-bottom:4px; border:1px solid var(--border-color);">${quizLabel}</span>
+                        <div style="font-size:11px; color:var(--text-muted);">풀이 시점: ${s.date}</div>
                     </div>
                     <button class="header-btn" style="background:#ef4444; border:none; padding:4px 10px; font-size:11px; color:#fff;" onclick="deleteHistoryLog(${s.id})">삭제</button>
                 </div>
-                <div style="font-size:14.5px; font-weight:bold; margin:6px 0; color:#0f172a;">최종 점수: ${s.score}점 (총 ${displayTotal}문항)</div>
+                <div style="font-size:14.5px; font-weight:bold; margin:6px 0; color:var(--text-title);">최종 점수: ${s.score}점 (총 ${displayTotal}문항)</div>
                 <div style="font-size:12.5px; color:#ef4444; font-weight:bold; margin-bottom:8px;">틀린 문제 수: ${s.wrongCount}개</div>
-                <button class="nav-control-btn" style="padding:7px; font-size:12px; background-color:#0284c7;" onclick="toggleHistoryWrongList(${s.id})">
+                <button class="nav-control-btn" style="padding:7px; font-size:12px; background-color:var(--primary);" onclick="toggleHistoryWrongList(${s.id})">
                     상세 문항 확인하기
                 </button>
                 <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
@@ -1169,11 +1401,11 @@ function fetchHistoryLogs() {
                             <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#10b981' : '#ef4444'}; padding-left: 10px; margin-bottom: 10px; position: relative;">
                                 <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 16px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
                                 <div style="font-weight:bold; color:${isRight ? '#10b981' : '#dc2626'}; margin-bottom:3px;">${modeText} ${w.source} [${isRight ? '정답' : '오답'}]</div>
-                                <div style="font-weight:bold; color:#1e293b; margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+                                <div style="font-weight:bold; color:var(--text-title); margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                                 ${w.view ? `<div class="view-content-wrapper">${formatViewHtml(w.view)}</div>` : ''}
-                                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#16a34a':'#dc2626'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
-                                <div style="font-size:12.5px; margin:2px 0; color:#16a34a; font-weight:bold;">정답 용어: ${answerDisplay}</div>
-                                <div style="margin-top: 8px; font-size: 12px; color: #475569; background: #ffffff; padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#10b981':'#dc2626'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
+                                <div style="font-size:12.5px; margin:2px 0; color:#10b981; font-weight:bold;">정답 용어: ${answerDisplay}</div>
+                                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-card); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
                             </div>
                         `;
                     }).join('')}
@@ -1233,7 +1465,7 @@ function startQuizTimer(isNewSession) {
     clearInterval(quizTimerInterval);
     if (isNewSession) {
         if (currentAppMode === 'written') {
-            remainingTimeSeconds = 150 * 60; 
+            remainingTimeSeconds = currentCertType === 'net2' ? 60 * 60 : 150 * 60; 
         } else {
             remainingTimeSeconds = sessionQuizData.length * 90; 
         }
@@ -1263,16 +1495,12 @@ function updateTimerDisplay() {
 
 window.openQuestionNavModal = function() {
     const modal = document.getElementById("q-nav-modal");
-    if(modal) {
-        modal.style.display = "flex";
-    }
+    if(modal) modal.style.display = "flex";
 };
 
 window.closeQuestionNavModal = function(event) {
     const modal = document.getElementById("q-nav-modal");
-    if(modal) {
-        modal.style.display = "none";
-    }
+    if(modal) modal.style.display = "none";
 };
 
 window.jumpToQuestion = function(index) {
@@ -1290,17 +1518,17 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
     }
 
     let resumeState = null;
-    if (selectedYear === 'sequential' && localStorage.getItem("정처기_순차풀이_중간저장")) {
-        const savedState = JSON.parse(localStorage.getItem("정처기_순차풀이_중간저장"));
+    if (selectedYear === 'sequential' && localStorage.getItem(getSeqSaveKey())) {
+        const savedState = JSON.parse(localStorage.getItem(getSeqSaveKey()));
         if (savedState.activeSessionType === currentAppMode) {
             const shouldResume = customTargetId ? true : confirm("이전에 멈춤 기록이 존재합니다. 이어서 풀이하시겠습니까? (취소 시 1번부터 시작)");
             if (shouldResume) {
                 resumeState = savedState;
             } else {
-                localStorage.removeItem("정처기_순차풀이_중간저장");
+                localStorage.removeItem(getSeqSaveKey());
             }
         } else {
-            localStorage.removeItem("정처기_순차풀이_중간저장");
+            localStorage.removeItem(getSeqSaveKey());
         }
     }
     
@@ -1314,7 +1542,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
     allSolvedIds = [...new Set(allSolvedIds)];
     
     try {
-        const res = await fetch('/api/quiz/new', { 
+        const res = await fetch(getApiBase() + '/new', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1341,17 +1569,16 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         sessionQuizData = data.questions;
 
         logUserAction("START_EXAM", { mode: currentAppMode, year: selectedYear, subject: customSubject || "전체" });
+        history.pushState({ screen: 'exam', mode: currentAppMode, cert: currentCertType }, '');
 
         if (resumeState) {
             currentQuizIndex = Math.min(resumeState.currentQuizIndex || 0, sessionQuizData.length - 1);
             savedUserAnswers = resumeState.savedUserAnswers || {};
-            remainingTimeSeconds = resumeState.remainingTimeSeconds || (currentAppMode === 'written' ? 150 * 60 : sessionQuizData.length * 90);
+            remainingTimeSeconds = resumeState.remainingTimeSeconds || (currentAppMode === 'written' ? (currentCertType === 'net2' ? 60 * 60 : 150 * 60) : sessionQuizData.length * 90);
             
             if (customTargetId) {
                 const foundIdx = sessionQuizData.findIndex(item => item.id === parseInt(customTargetId, 10));
-                if (foundIdx !== -1) {
-                    currentQuizIndex = foundIdx;
-                }
+                if (foundIdx !== -1) currentQuizIndex = foundIdx;
             }
 
             revealedAnswers = {};
@@ -1428,21 +1655,14 @@ function extractChoices(q) {
     let cleanLines = [];
     
     for (let line of lines) {
-        if (/^\[.*\]$/.test(line) || line.includes("패턴 목록") || line.includes("보기 목록")) {
-            continue;
-        }
-
+        if (/^\[.*\]$/.test(line) || line.includes("패턴 목록") || line.includes("보기 목록")) continue;
         if (line.includes("기입") || line.includes("선택하여") || line.includes("쓰시오") || 
             line.includes("입력란") || line.includes("번 칸") || line.includes("양식에") || 
-            line.includes("보기 중에서") || line.includes("설명식") || line.includes("따라")) {
-            continue;
-        }
+            line.includes("보기 중에서") || line.includes("설명식") || line.includes("따라")) continue;
         
         if (line.includes("패턴:") || line.includes("패턴 :")) {
             const parts = line.split(":");
-            if (parts.length > 1) {
-                line = parts[1].trim();
-            }
+            if (parts.length > 1) line = parts[1].trim();
         }
         cleanLines.push(line);
     }
@@ -1468,7 +1688,6 @@ function extractChoices(q) {
     for (let item of rawItems) {
         let text = item.trim();
         if (!text) continue;
-
         if (/^[\|\,\/\•\-\*\·\s]+$/.test(text)) continue;
 
         text = text.replace(/^[•\-\*\·\s]+/, '');
@@ -1482,9 +1701,7 @@ function extractChoices(q) {
         if (!text || text.length > 35 || text.includes("~") || text.includes(":") || text.includes("영역") ||
             text === "생성 패턴" || text === "구조 패턴" || text === "행위 패턴" ||
             text.includes("패턴 목록") || text.includes("목록]") || text.endsWith("]") ||
-            text.includes("번 칸:") || text.includes("입력란:")) {
-            continue;
-        }
+            text.includes("번 칸:") || text.includes("입력란:")) continue;
 
         cleanItems.push(text);
     }
@@ -1494,7 +1711,7 @@ function extractChoices(q) {
     
     let html = `
         <div class="choices-guide-wrap" style="margin-top: 10px; margin-bottom: 6px;">
-            <div style="font-size: 11.5px; font-weight: bold; color: #0284c7; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+            <div style="font-size: 11.5px; font-weight: bold; color: var(--primary); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
                 [빠른 정답 입력]
             </div>
             <div class="choices-container" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-start;"> 
@@ -1503,10 +1720,8 @@ function extractChoices(q) {
     cleanItems.forEach(item => {
         const safeClickVal = item.replace(/'/g, "\\'").replace(/"/g, "&quot;");
         html += `
-            <button type="button" class="choice-badge" style="padding: 6px 12px; background: #ffffff; border: 1px solid #bae6fd; border-radius: 20px; font-size: 12.5px; color: #0284c7; cursor: pointer; font-weight: bold; outline: none; transition: background 0.2s;" 
-                onclick="handleChoiceClick('${safeClickVal}')" 
-                onfocus="this.style.background='#e0f2fe';" 
-                onblur="this.style.background='#ffffff';">
+            <button type="button" class="choice-badge" style="padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; font-size: 12.5px; color: var(--primary); cursor: pointer; font-weight: bold; outline: none; transition: background 0.2s;" 
+                onclick="handleChoiceClick('${safeClickVal}')">
                 ${escapeHtml(item)}
             </button>
         `;
@@ -1551,9 +1766,7 @@ window.selectWrittenAnswer = function(qId, choiceNum) {
 
 function focusInitialField(q) {
     const questionTarget = document.getElementById("question-focus-target");
-    if (questionTarget) {
-        questionTarget.focus();
-    }
+    if (questionTarget) questionTarget.focus();
 
     if (q.type !== 'written') {
         if (q.inputCount > 1) {
@@ -1569,9 +1782,9 @@ function renderSingleQuestion() {
     if (!q) return;
 
     if (activeSessionYear === 'sequential') {
-        history.replaceState(null, '', `?mode=${currentAppMode}&year=sequential&id=${q.id}`);
+        history.replaceState(null, '', `?mode=${currentAppMode}&year=sequential&id=${q.id}&cert=${currentCertType || 'qnet'}`);
     } else {
-        history.replaceState(null, '', `?mode=${currentAppMode}&id=${q.id}`);
+        history.replaceState(null, '', `?mode=${currentAppMode}&id=${q.id}&cert=${currentCertType || 'qnet'}`);
     }
 
     const modeLabel = q.type === 'written' ? '객관식 필기 모드' : '주관식 실기 모드';
@@ -1580,7 +1793,6 @@ function renderSingleQuestion() {
     
     const isBookmarked = isQuestionBookmarked(q.text);
     const starChar = isBookmarked ? "★" : "☆";
-    
     let delimiter = (q.answer && q.answer.includes(" / ")) ? " / " : ",";
     
     if (activeSessionYear === 'sequential') {
@@ -1591,7 +1803,7 @@ function renderSingleQuestion() {
             savedUserAnswers: savedUserAnswers,
             remainingTimeSeconds: remainingTimeSeconds 
         };
-        localStorage.setItem("정처기_순차풀이_중간저장", JSON.stringify(saveState));
+        localStorage.setItem(getSeqSaveKey(), JSON.stringify(saveState));
     }
     
     let inputHtml = '<div class="input-block-wrapper">';
@@ -1661,18 +1873,20 @@ function renderSingleQuestion() {
         </div>
     `;
     
-    let html = `
-        <div class="step-panel-header">
-            <div class="step-label clickable" onclick="openQuestionNavModal()">문항 이동: ${currentQuizIndex + 1} / ${sessionQuizData.length} ▼</div>
-            <div id="quiz-timer-display" class="timer-display"></div>
-            <span class="bookmark-toggle-btn" id="bookmark-icon" onclick="handleBookmarkClick()">${starChar}</span>
+   let html = `
+        <div class="question-main-card">
+            <div class="step-panel-header">
+                <div class="step-label clickable" onclick="openQuestionNavModal()">문항 이동: ${currentQuizIndex + 1} / ${sessionQuizData.length} ▼</div>
+                <div id="quiz-timer-display" class="timer-display"></div>
+                <span class="bookmark-toggle-btn" id="bookmark-icon" onclick="handleBookmarkClick()">${starChar}</span>
+            </div>
+            <div class="source-tag">${q.source}</div>
+            
+            ${formatQuestionView(q.text)}
+            
+            ${q.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
+            ${q.view ? `<div class="view-content-wrapper">${formatViewHtml(q.view)}</div>` : ''}
         </div>
-        <div class="source-tag">${q.source}</div>
-        
-        ${formatQuestionView(q.text)}
-        
-        ${q.image ? `<div style="text-align:center; margin-bottom:12px;"><img src="${q.image}" class="question-img" alt="기출 이미지"></div>` : ''}
-        ${q.view ? `<div class="view-content-wrapper">${formatViewHtml(q.view)}</div>` : ''}
         
         ${choicesHtml}
         ${inputHtml}
@@ -1697,11 +1911,7 @@ function renderSingleQuestion() {
     container.scrollTop = 0;
     
     updateTimerDisplay();
-    
-    if (revealedAnswers[q.id]) {
-        showAnswerBoxInline(q, revealedAnswers[q.id]);
-    }
-
+    if (revealedAnswers[q.id]) showAnswerBoxInline(q, revealedAnswers[q.id]);
     focusInitialField(q);
 }
 
@@ -1717,7 +1927,7 @@ async function toggleInstantFeedbackReveal(qId) {
         }
     } else {
         try {
-            const res = await fetch('/api/quiz/check-answer', {
+            const res = await fetch(getApiBase() + '/check-answer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId: activeSessionId, questionId: qId })
@@ -1758,8 +1968,8 @@ function showAnswerBoxInline(q, answerData) {
 
     panelArea.innerHTML = `
         <div class="instant-feedback-panel">
-            <div style="font-weight:bold; color:#15803d; margin-bottom:6px; font-size:14.5px;">💡 출제 정답: ${answerDisplay}</div>
-            <div style="font-size:13.5px; color:#166534; line-height: 1.6; word-break: keep-all;">${cleanDesc}</div>
+            <div style="font-weight:bold; color:#10b981; margin-bottom:6px; font-size:14.5px;">💡 출제 정답: ${answerDisplay}</div>
+            <div style="font-size:13.5px; color:var(--text-main); line-height: 1.6; word-break: keep-all;">${cleanDesc}</div>
         </div>
     `;
     
@@ -1772,22 +1982,18 @@ function showAnswerBoxInline(q, answerData) {
     logUserAction("INSTANT_CHECK_ANSWER", { questionId: q.id, mode: q.type });
 
     setTimeout(() => {
-        if (actionCard) {
-            actionCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        if (actionCard) actionCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
 }
 
 function hideAnswerBoxInline() {
     const panelArea = document.getElementById("instant-reveal-area");
-    if (panelArea) {
-        panelArea.innerHTML = "";
-    }
+    if (panelArea) panelArea.innerHTML = "";
     
     const actionCard = document.getElementById("main-action-trigger-card");
     if (actionCard) {
         actionCard.innerText = "정답 확인";
-        actionCard.style.backgroundColor = "#0f172a";
+        actionCard.style.backgroundColor = "var(--bg-header)";
     }
 }
 
@@ -1817,16 +2023,12 @@ function handleInputNavigation(e, index, total) {
 }
 
 function handleSingleKeyPress(e) {
-    if (e.key === 'Enter') {
-        moveStep(1);
-    }
+    if (e.key === 'Enter') moveStep(1);
 }
 
 function handleBookmarkClick() {
     const q = sessionQuizData[currentQuizIndex];
-    if (q) {
-        toggleBookmarkStatus(q);
-    }
+    if (q) toggleBookmarkStatus(q);
 }
 
 function moveStep(dir) {
@@ -1840,7 +2042,7 @@ function moveStep(dir) {
 
 async function submitQuizAnswers() {
     try {
-        const res = await fetch('/api/quiz/submit', {
+        const res = await fetch(getApiBase() + '/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId: activeSessionId, userAnswers: savedUserAnswers })
@@ -1853,8 +2055,7 @@ async function submitQuizAnswers() {
             return;
         }
         
-        localStorage.removeItem("정처기_순차풀이_중간저장");
-        
+        localStorage.removeItem(getSeqSaveKey());
         saveHistoryToLocal(result);
         logUserAction("SUBMIT_EXAM", { mode: activeSessionType, score: result.score, isPassed: result.isPassed });
         renderReviewResult(result);
@@ -1898,7 +2099,7 @@ function saveHistoryToLocal(result) {
     };
     
     history.push(newLog);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    localStorage.setItem(getHistoryKey(), JSON.stringify(history));
 }
 
 function renderReviewResult(result) {
@@ -1922,46 +2123,21 @@ function renderReviewResult(result) {
     if (isPassed) {
         resultBannerHtml = `
             <div class="pass-celebration-card">
-                <div class="cute-mascot">
-                    <svg viewBox="0 0 100 100" width="100%" height="100%">
-                        <circle cx="50" cy="55" r="35" fill="#f1c40f" />
-                        <circle cx="33" cy="58" r="6" fill="#e74c3c" opacity="0.4" />
-                        <circle cx="67" cy="58" r="6" fill="#e74c3c" opacity="0.4" />
-                        <circle cx="38" cy="50" r="4" fill="#2c3e50" />
-                        <circle cx="62" cy="50" r="4" fill="#2c3e50" />
-                        <polygon points="45,55 55,55 50,63" fill="#e67e22" />
-                        <polygon points="35,28 42,15 50,25 58,15 65,28" fill="#f39c12" />
-                        <circle cx="42" cy="13" r="2" fill="#e74c3c" />
-                        <circle cx="50" cy="23" r="2" fill="#3498db" />
-                        <circle cx="58" cy="13" r="2" fill="#e74c3c" />
-                    </svg>
-                </div>
-
                 <h2 style="margin: 0 0 6px 0; font-size: 22px; font-weight: bold;">축하합니다! 합격입니다!</h2>
-                <p style="margin: 0; font-size: 15px; font-weight: bold;">
-                    최종 점수: ${finalScore}점 / 100점 만점
-                </p>
-                <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">
-                    (합격 기준: 60점 이상 및 과락 미발생)
-                </p>
+                <p style="margin: 0; font-size: 15px; font-weight: bold;">최종 점수: ${finalScore}점 / 100점 만점</p>
+                <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">(합격 기준: 60점 이상 및 과락 미발생)</p>
             </div>
         `;
     } else {
         let failReasonText = "평균 점수 60점 미달";
-        if (isGwarak) {
-            failReasonText = `과락 발생 [${gwarakSubjects.join(", ")}]`;
-        }
+        if (isGwarak) failReasonText = `과락 발생 [${gwarakSubjects.join(", ")}]`;
 
         resultBannerHtml = `
             <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: #ffffff; padding: 24px 18px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
                 <div style="font-size: 40px; margin-bottom: 5px;">💪</div>
                 <h2 style="margin: 0 0 5px 0; font-size: 22px;">아쉽습니다! 불합격입니다</h2>
-                <p style="margin: 0; font-size: 15px; font-weight: bold;">
-                    최종 점수: ${finalScore}점 / 100점 만점
-                </p>
-                <p style="margin: 6px 0 0 0; font-size: 12px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 6px;">
-                    불합격 사유: ${failReasonText}
-                </p>
+                <p style="margin: 0; font-size: 15px; font-weight: bold;">최종 점수: ${finalScore}점 / 100점 만점</p>
+                <p style="margin: 6px 0 0 0; font-size: 12px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 6px;">불합격 사유: ${failReasonText}</p>
             </div>
         `;
     }
@@ -1971,7 +2147,7 @@ function renderReviewResult(result) {
             ${resultBannerHtml}
             <button class="nav-control-btn" style="width:100%; margin-bottom:16px;" onclick="loadMainDashboard()">대시보드 메인으로 복귀</button>
         </div>
-        <h4 style="color:#0f172a; border-bottom:2px solid #0f172a; padding-bottom:5px; margin-bottom:12px;">문항별 상세 리뷰</h4>
+        <h4 style="color:var(--text-title); border-bottom:2px solid var(--border-color); padding-bottom:5px; margin-bottom:12px;">문항별 상세 리뷰</h4>
     `;
     
     result.reviewData.forEach((r, idx) => {
@@ -1982,28 +2158,26 @@ function renderReviewResult(result) {
         let answerDisplay = escapeHtml(r.realAnswer);
         if (r.type === 'written' && r.choices) {
             const ansIdx = parseInt(r.realAnswer, 10) - 1;
-            if (r.choices[ansIdx]) {
-                answerDisplay = `${r.realAnswer}번. ${escapeHtml(r.choices[ansIdx])}`;
-            }
+            if (r.choices[ansIdx]) answerDisplay = `${r.realAnswer}번. ${escapeHtml(r.choices[ansIdx])}`;
         }
 
         let scoreBadge = "";
         if (r.type === 'practical') {
-            scoreBadge = `<span style="font-size:12px; font-weight:bold; color:${r.earnedScore > 0 ? '#16a34a' : '#dc2626'}; float:right;">획득: ${r.earnedScore}점 / ${r.maxScore}점</span>`;
+            scoreBadge = `<span style="font-size:12px; font-weight:bold; color:${r.earnedScore > 0 ? '#10b981' : '#dc2626'}; float:right;">획득: ${r.earnedScore}점 / ${r.maxScore}점</span>`;
         }
 
         let cleanDesc = r.desc ? r.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
 
         html += `
-            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#10b981' : (r.earnedScore > 0 ? '#f59e0b' : '#ef4444')}; position: relative;">
+            <div class="log-box-card" style="border-top-color: ${r.isRight ? '#10b981' : '#ef4444'}; position: relative;">
                 <span class="bookmark-toggle-btn" style="position: absolute; top: 12px; right: 15px; cursor: pointer; font-size: 18px;" onclick="toggleBookmarkFromReview(${idx}, this)">${starChar}</span>
-                <div class="source-tag">${idx + 1}번 | ${modeText} 출처: ${r.source} [${r.isRight ? 'PASS' : (r.earnedScore > 0 ? 'PARTIAL' : 'FAIL')}] ${scoreBadge}</div>
+                <div class="source-tag">${idx + 1}번 | ${modeText} 출처: ${r.source} [${r.isRight ? 'PASS' : 'FAIL'}] ${scoreBadge}</div>
                 <div class="question-title" style="font-size:13.5px; margin-bottom:8px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(r.text)}</div>
                 ${r.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
-                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#16a34a' : (r.earnedScore > 0 ? '#d97706' : '#dc2626')}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
-                <div style="font-size:12.5px; margin:2px 0; color:#16a34a; font-weight:bold;">정답 용어: ${answerDisplay}</div>
-                <div style="margin-top:8px; font-size:12px; color:#475569; background:#f8f9fa; padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid #e2e8f0;">${cleanDesc}</div>
+                <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#10b981' : '#dc2626'}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
+                <div style="font-size:12.5px; margin:2px 0; color:#10b981; font-weight:bold;">정답 용어: ${answerDisplay}</div>
+                <div style="margin-top:8px; font-size:12px; color:var(--text-muted); background:var(--bg-sub-box); padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
             </div>
         `;
     });
@@ -2012,27 +2186,40 @@ function renderReviewResult(result) {
     view.scrollTop = 0;
 }
 
-function exitToDashboard() {
+function exitToDashboard(fromPopstate = false) {
     if (activeSessionId) {
         const confirmMessage = (activeSessionYear === 'sequential')
             ? "진행 상황이 저장되었습니다. 메인 화면으로 돌아가시겠습니까?"
             : "시험을 중단하고 메인 화면으로 돌아가시겠습니까?";
 
         if (confirm(confirmMessage)) {
-            loadMainDashboard();
+            clearInterval(quizTimerInterval);
+            activeSessionId = null;
+            activeSessionYear = null;
+            activeSessionType = null;
+            loadMainDashboard(fromPopstate);
+        } else {
+            if (fromPopstate) {
+                history.pushState({ screen: 'exam', mode: currentAppMode, cert: currentCertType }, '');
+            }
         }
     } else if (globalTabState !== 'all') {
-        switchMainTab('all');
+        switchMainTab('all', fromPopstate);
     } else {
         const centerTitle = document.getElementById("header-center-title")?.innerText;
-        if (centerTitle === "채점 분석 리포트") {
-            loadMainDashboard();
+        if (centerTitle && centerTitle.includes("채점 분석 리포트")) {
+            loadMainDashboard(fromPopstate);
         } else {
             currentAppMode = null;
-            loadModeSelectionScreen();
+            loadModeSelectionScreen(fromPopstate);
         }
     }
 }
+
+// 브라우저 및 스마트폰 물리/제스처 뒤로가기(popstate) 핸들러 등록
+window.addEventListener('popstate', (e) => {
+    exitToDashboard(true);
+});
 
 function generateDeviceFingerprint() {
     const nav = window.navigator;
@@ -2056,13 +2243,9 @@ function generateDeviceFingerprint() {
 
 window.openFeedbackModal = function() {
     const message = prompt("기출문제 오류나 앱 기능 개선에 대한 의견을 남겨주십시오.\n(하루 최대 10개까지 작성 가능합니다)");
-    
-    if (!message || message.trim() === "") {
-        return;
-    }
+    if (!message || message.trim() === "") return;
     
     const fingerprint = generateDeviceFingerprint();
-
     const requestData = {
         appMode: currentAppMode || "common",
         message: message.trim(),
@@ -2071,9 +2254,7 @@ window.openFeedbackModal = function() {
 
     fetch('/api/feedback', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
     })
     .then(res => res.json().then(data => ({ status: res.status, body: data })))
@@ -2092,15 +2273,19 @@ window.openFeedbackModal = function() {
 };
 
 window.onload = function() {
+    initTheme();
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id');
     const mode = urlParams.get('mode');
     const year = urlParams.get('year');
 
+    const cert = urlParams.get('cert');
     if (targetId) {
+        currentCertType = (cert === 'net2') ? 'net2' : 'qnet';
         currentAppMode = (mode === 'written') ? 'written' : 'practical';
         globalTabState = 'all';
         updateBottomTabUI();
+        updateHeaderDDayBadge();
         if (year === 'sequential') {
             triggerNewQuizSession('sequential', null, null, parseInt(targetId, 10));
         } else {
