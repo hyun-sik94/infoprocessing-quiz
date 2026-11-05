@@ -151,8 +151,7 @@ function updateHeaderDDayBadge() {
     }
     
     badge.style.display = "inline-flex";
-    const info = getExamDDayInfo();
-    badge.innerText = `${info.badgeText}`;
+    badge.innerText = "시험일정";
 }
 
 // Q-Net 시험 일정 모달 제어
@@ -452,6 +451,98 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+// 전문 가시성 강화 해설 HTML 렌더러
+function formatExplanationHtml(rawDesc) {
+    if (!rawDesc) return "";
+    let desc = String(rawDesc).replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim();
+    if (!desc) return "";
+    desc = escapeHtml(desc);
+
+    const lines = desc.split('\n').map(l => l.trimEnd());
+    let html = '<div class="explanation-container">';
+    let inWrongSection = false;
+    let inConceptSection = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) continue;
+
+        // 1) [오답 풀이] 헤더 감지
+        if (/^\[오답\s*(풀이|해설)\]$/i.test(line)) {
+            if (inConceptSection) { html += '</div>'; inConceptSection = false; }
+            if (inWrongSection) { html += '</div>'; }
+            inWrongSection = true;
+            html += `
+                <div class="desc-section-group desc-wrong-group">
+                    <div class="desc-section-header">
+                        <span class="desc-section-badge badge-wrong">❌ 오답 풀이</span>
+                    </div>
+            `;
+            continue;
+        }
+
+        // 2) [보충 개념] 헤더 감지
+        if (/^\[(보충|핵심|관련)\s*개념\]$|^\[참고\]$/i.test(line)) {
+            if (inWrongSection) { html += '</div>'; inWrongSection = false; }
+            if (inConceptSection) { html += '</div>'; }
+            inConceptSection = true;
+            const titleMatch = line.match(/^\[(.*)\]$/);
+            const titleText = titleMatch ? titleMatch[1] : "보충 개념";
+            html += `
+                <div class="desc-section-group desc-concept-group">
+                    <div class="desc-section-header">
+                        <span class="desc-section-badge badge-concept">💡 ${titleText}</span>
+                    </div>
+            `;
+            continue;
+        }
+
+        // 3) 선택지 항목 (- 1번: ...) 감지
+        const choiceItemMatch = line.match(/^[-•·*]?\s*([①-④1-4A-Za-z]번?|[①-④A-Za-z]|\([A-Za-z\d]+\))\s*(?:\([^)]+\))?\s*[:：]\s*(.*)$/);
+        if (choiceItemMatch) {
+            let numLabel = choiceItemMatch[1];
+            if (!numLabel.endsWith('번') && /^[1-4]$/.test(numLabel)) numLabel += '번';
+            const content = choiceItemMatch[2];
+            html += `
+                <div class="desc-choice-item">
+                    <span class="desc-num-chip">${numLabel}</span>
+                    <span class="desc-choice-text">${content}</span>
+                </div>
+            `;
+            continue;
+        }
+
+        // 4) 정답 서두 문장 (정답: 2. ...) 감지
+        const answerHeadMatch = line.match(/^정답\s*[:：]\s*([①-④\d]+)\.?\s*(.*)$/);
+        if (answerHeadMatch && !inWrongSection && !inConceptSection) {
+            const ansNum = answerHeadMatch[1];
+            const ansBody = answerHeadMatch[2];
+            html += `
+                <div class="desc-lead-block">
+                    <span class="desc-lead-badge">정답 ${ansNum}번</span>
+                    <span class="desc-lead-text">${ansBody}</span>
+                </div>
+            `;
+            continue;
+        }
+
+        // 5) 일반 문장
+        if (inConceptSection) {
+            html += `<div class="desc-concept-line">${line}</div>`;
+        } else if (inWrongSection) {
+            html += `<div class="desc-plain-line">${line}</div>`;
+        } else {
+            html += `<div class="desc-main-paragraph">${line}</div>`;
+        }
+    }
+
+    if (inWrongSection || inConceptSection) {
+        html += '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+
 function parseSecurePayload(data) {
     if (data && data.payload) {
         try {
@@ -564,7 +655,12 @@ function importBackupData(event) {
 
             logUserAction("RESTORE_DATA", { bookmarks: bookmarkCount, history: historyCount });
             alert("학습 데이터가 성공적으로 복원되었습니다.");
-            loadMainDashboard();
+            const tabMy = document.getElementById("tab-my");
+            if (tabMy && tabMy.classList.contains("active")) {
+                renderMyBookmarksTab();
+            } else {
+                loadMainDashboard();
+            }
         } catch (err) {
             console.error("복원 파싱 에러:", err);
             alert("파일을 읽고 복원하는 중 오류가 발생했습니다: " + err.message);
@@ -971,7 +1067,6 @@ function loadMainDashboard(isPopstate = false) {
     updateHeaderDDayBadge();
     
     const container = document.getElementById("view-renderer");
-    const ddayInfo = currentCertType === 'net2' ? null : getExamDDayInfo();
 
     const searchSectionTitle = isWritten ? "정답/해설에서 문제찾기" : "문제 / 정답으로 문제찾기";
     const selectOptionsHtml = isWritten ? `
@@ -984,21 +1079,6 @@ function loadMainDashboard(isPopstate = false) {
     const defaultPlaceholder = isWritten ? "정답 용어/문구 입력" : "기억나는 정답 용어 입력";
 
     let dashboardHtml = `
-${(currentCertType === 'net2' || !ddayInfo) ? '' : `
-        <!-- D-Day 인터랙티브 카드 배너 (클릭 시 전체 일정 모달) -->
-        <div class="dashboard-dday-card" onclick="openScheduleModal()">
-            <div class="dday-left-info">
-                <span class="dday-sub-label">Q-Net 공인 시험 카운트다운</span>
-                <span class="dday-main-exam-name">${ddayInfo.examName}</span>
-                <span class="dday-date-range">시험기간: ${ddayInfo.period}</span>
-            </div>
-            <div class="dday-count-badge">
-                <span class="dday-count-num">${ddayInfo.badgeText}</span>
-                <span class="dday-count-desc">${ddayInfo.descText}</span>
-            </div>
-        </div>
-        `}
-
         <div class="dashboard-util-bar">
             <span class="input-label-text">${searchSectionTitle}</span>
             <div class="search-input-group">
@@ -1007,11 +1087,6 @@ ${(currentCertType === 'net2' || !ddayInfo) ? '' : `
                 </select>
                 <input type="text" id="search-answer-input" class="search-input" placeholder="${defaultPlaceholder}" onkeypress="handleSearchKeyPress(event)">
                 <button class="search-btn" onclick="searchQuestionByAnswer()">검색</button>
-            </div>
-            <div class="backup-btn-group">
-                <button class="util-sub-btn" onclick="exportBackupData()">💾 데이터 백업</button>
-                <button class="util-sub-btn" onclick="triggerRestoreFileInput()">📂 데이터 복원</button>
-                <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="importBackupData(event)">
             </div>
         </div>
 
@@ -1237,7 +1312,7 @@ function renderSearchResults(results, query, field) {
                     ${r.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${r.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                     ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
                     <div style="font-size: 13px; color: #10b981; font-weight: bold; margin-top: 5px;">출제 정답: ${answerDisplay}</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-sub-box); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
+                    ${formatExplanationHtml(r.desc)}
                 </div>
             `;
         });
@@ -1274,16 +1349,25 @@ function renderMyBookmarksTab() {
     
     const bookmarks = getBookmarkedQuestions().filter(b => b.type === currentAppMode);
     
+    const backupHtml = `
+        <div class="backup-btn-group" style="margin-bottom: 16px;">
+            <button class="util-sub-btn" onclick="exportBackupData()">💾 데이터 백업</button>
+            <button class="util-sub-btn" onclick="triggerRestoreFileInput()">📂 데이터 복원</button>
+            <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="importBackupData(event)">
+        </div>
+    `;
+
     if (bookmarks.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center; padding-top:60px; color:var(--text-light);">
+            ${backupHtml}
+            <div style="text-align:center; padding-top:40px; color:var(--text-light);">
                 <div style="font-size:45px; margin-bottom:15px;">⭐</div>
                 <p style="font-size:14px;">현재 모드에 보관된 즐겨찾기가 없습니다.</p>
             </div>
         `;
         return;
     }
-    
+
     const bookmarkIds = bookmarks.map(b => b.id).filter(id => id !== undefined);
     let startButtonHtml = "";
     if (bookmarkIds.length > 0) {
@@ -1293,8 +1377,9 @@ function renderMyBookmarksTab() {
             </button>
         `;
     }
-    
+
     let html = `
+        ${backupHtml}
         ${startButtonHtml}
         <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:12px;">보관된 항목 총 ${bookmarks.length}개</p>
     `;
@@ -1319,7 +1404,7 @@ function renderMyBookmarksTab() {
                 ${b.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="view-content-wrapper">${formatViewHtml(b.view)}</div>` : ''}
                 <div style="font-size:13px; color:#10b981; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>
-                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-sub-box); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
+                ${formatExplanationHtml(b.desc)}
             </div>
         `;
     });
@@ -1405,7 +1490,7 @@ function fetchHistoryLogs() {
                                 ${w.view ? `<div class="view-content-wrapper">${formatViewHtml(w.view)}</div>` : ''}
                                 <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${isRight ? '#10b981':'#dc2626'}">${escapeHtml(w.userAnswer) || "미입력"}</span></div>
                                 <div style="font-size:12.5px; margin:2px 0; color:#10b981; font-weight:bold;">정답 용어: ${answerDisplay}</div>
-                                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); background: var(--bg-card); padding: 10px; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
+                                ${formatExplanationHtml(w.desc)}
                             </div>
                         `;
                     }).join('')}
@@ -1964,12 +2049,10 @@ function showAnswerBoxInline(q, answerData) {
         }
     }
 
-    let cleanDesc = data.desc ? data.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
-
     panelArea.innerHTML = `
         <div class="instant-feedback-panel">
-            <div style="font-weight:bold; color:#10b981; margin-bottom:6px; font-size:14.5px;">💡 출제 정답: ${answerDisplay}</div>
-            <div style="font-size:13.5px; color:var(--text-main); line-height: 1.6; word-break: keep-all;">${cleanDesc}</div>
+            <div style="font-weight:bold; color:#10b981; margin-bottom:10px; font-size:14.5px;">💡 출제 정답: ${answerDisplay}</div>
+            ${formatExplanationHtml(data.desc)}
         </div>
     `;
     
@@ -2177,7 +2260,7 @@ function renderReviewResult(result) {
                 ${r.view ? `<div class="view-content-wrapper">${formatViewHtml(r.view)}</div>` : ''}
                 <div style="font-size:12.5px; margin:2px 0;">작성 답안: <span style="font-weight:bold; color:${r.isRight ? '#10b981' : '#dc2626'}">${escapeHtml(r.userAnswer) || "미입력"}</span></div>
                 <div style="font-size:12.5px; margin:2px 0; color:#10b981; font-weight:bold;">정답 용어: ${answerDisplay}</div>
-                <div style="margin-top:8px; font-size:12px; color:var(--text-muted); background:var(--bg-sub-box); padding:10px; border-radius:6px; line-height:1.5; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);">${cleanDesc}</div>
+                ${formatExplanationHtml(r.desc)}
             </div>
         `;
     });

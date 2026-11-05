@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IT 자격증 스마트 CBT</title>
-    <link rel="stylesheet" href="style.css?v=20261105_03">
+    <link rel="stylesheet" href="style.css?v=20261105_05">
     <script>
         // 깜빡임 방지를 위한 초기 테마 즉시 적용
         const savedTheme = localStorage.getItem("cbt_theme") || "light";
@@ -18,7 +18,7 @@
         <span class="header-btn" onclick="exitToDashboard()">Back</span>
         <span id="header-center-title">기출 메인</span>
         <div class="header-right-tools">
-            <span id="header-dday-badge" class="header-dday-badge" onclick="openScheduleModal()" title="시험 일정 보기">D-Day</span>
+            <span id="header-dday-badge" class="header-dday-badge" onclick="openScheduleModal()" title="시험 일정 보기">시험일정</span>
             <button id="theme-toggle-btn" class="theme-icon-btn" onclick="toggleTheme()" title="테마 변경">🌙</button>
         </div>
     </div>
@@ -64,6 +64,6 @@
     </div>
 </div>
 
-<script src="app.js?v=20261105_03"></script>
+<script src="app.js?v=20261105_05"></script>
 </body>
 </html>
