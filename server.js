@@ -1,15 +1,19 @@
 const express = require('express');
+const cors = require('cors'); // 이 줄을 추가합니다.
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const net2Router = require('./routes/net2.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 미들웨어 설정
+app.use(cors()); // 추가: 모바일 앱 및 외부 도메인 API 요청 허용
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/net2', net2Router);
 
 // SQLite 데이터베이스 초기화
 const dbPath = path.join(__dirname, 'feedback.db');

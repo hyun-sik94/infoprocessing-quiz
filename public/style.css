@@ -1,14 +1,90 @@
-html, body {
+:root {
+    --bg-body: #0f172a;
+    --bg-wrapper: #f8fafc;
+    --bg-header: #0f172a;
+    --header-text: #ffffff;
+    --header-btn-bg: rgba(255, 255, 255, 0.12);
+    --header-btn-border: rgba(255, 255, 255, 0.2);
+    --bg-card: #ffffff;
+    --bg-sub-box: #f8fafc;
+    --border-color: #e2e8f0;
+    --border-sub: #cbd5e1;
+    --text-title: #0f172a;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --text-light: #94a3b8;
+    --primary: #0284c7;
+    --primary-bg: #e0f2fe;
+    --tab-bg: #ffffff;
+    --tab-border: #e2e8f0;
+    --dday-badge-bg: #fee2e2;
+    --dday-badge-text: #dc2626;
+    --dday-badge-border: #fca5a5;
+    --modal-bg: #ffffff;
+
+    /* 표 및 보기 전용 변수 (라이트모드) */
+    --table-th-bg: #f1f5f9;
+    --table-th-text: #0f172a;
+    --table-td-bg: #ffffff;
+    --table-td-text: #334155;
+    --table-border: #cbd5e1;
+    --bogi-box-bg: #f8fafc;
+    --bogi-box-border: #cbd5e1;
+    --bogi-chip-bg: #ffffff;
+    --bogi-chip-text: #0284c7;
+    --bogi-chip-border: #bae6fd;
+}
+
+[data-theme="dark"] {
+    --bg-body: #060911;
+    --bg-wrapper: #0b1120;
+    --bg-header: #131d31;
+    --header-text: #f8fafc;
+    --header-btn-bg: rgba(255, 255, 255, 0.1);
+    --header-btn-border: rgba(255, 255, 255, 0.2);
+    --bg-card: #162032;
+    --bg-sub-box: #0f172a;
+    --border-color: #24344d;
+    --border-sub: #334155;
+    --text-title: #f8fafc;
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-light: #64748b;
+    --primary: #38bdf8;
+    --primary-bg: #0c4a6e;
+    --tab-bg: #131d31;
+    --tab-border: #24344d;
+    --dday-badge-bg: #7f1d1d;
+    --dday-badge-text: #fca5a5;
+    --dday-badge-border: #991b1b;
+    --modal-bg: #162032;
+
+    /* 표 및 보기 전용 변수 (다크모드 고대비) */
+    --table-th-bg: #1e293b;
+    --table-th-text: #38bdf8;
+    --table-td-bg: #0f172a;
+    --table-td-text: #f1f5f9;
+    --table-border: #334155;
+    --bogi-box-bg: #0f172a;
+    --bogi-box-border: #334155;
+    --bogi-chip-bg: #1e293b;
+    --bogi-chip-text: #38bdf8;
+    --bogi-chip-border: #0284c7;
+}
+
+html,
+body {
     margin: 0;
     padding: 0;
     height: 100%;
     height: 100dvh;
     overflow: hidden;
-    background-color: #0f172a;
+    background-color: var(--bg-body);
     font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
+    transition: background-color 0.25s ease;
 }
 
 .phone-wrapper {
@@ -17,45 +93,92 @@ html, body {
     height: 100%;
     height: 100dvh;
     max-height: 880px;
-    background-color: #f8fafc;
+    background-color: var(--bg-wrapper);
     position: relative;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 16px 50px rgba(0,0,0,0.5);
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
     overflow: hidden;
     box-sizing: border-box;
+    transition: background-color 0.25s ease;
 }
 
-@media (max-width: 768px) {
-    html, body {
-        background-color: #f8fafc;
-        display: block;
-    }
+/* 기본 래퍼: 스마트폰 세로 기준 */
+.phone-wrapper {
+    width: 100%;
+    max-width: 430px;
+    height: 100%;
+    height: 100dvh;
+    max-height: 880px;
+    background-color: var(--bg-wrapper);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    box-sizing: border-box;
+    transition: background-color 0.25s ease, max-width 0.3s ease;
+}
+
+/* 태블릿 가로 / 데스크톱 반응형 확장 (가로 폭 768px 이상일 때) */
+@media (min-width: 769px) {
     .phone-wrapper {
-        width: 100% !important;
-        max-width: 100% !important;
-        height: 100% !important;
-        height: 100dvh !important;
-        max-height: none !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
+        max-width: 960px;
+        /* 태블릿 가로 폭에 맞춰 넉넉하게 확장 */
+        max-height: 90vh;
+        /* 화면 상하 여백 최적화 */
+        border-radius: 20px;
+        border: 1px solid var(--border-color);
+    }
+
+    /* 문제 풀이 화면일 때 좌우 2단 분할(Split) 배치 */
+    #view-renderer:has(.step-panel-header) {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        /* 좌측: 문제/지문(60%), 우측: 정답입력/조작(40%) */
+        gap: 20px;
+        align-items: start;
+        padding: 20px;
+    }
+
+    /* 좌측 문제 영역: 지문, 표, SVG 다이어그램을 카드 안에 깔끔하게 고정 */
+    #view-renderer:has(.step-panel-header) .question-main-card {
+        margin-bottom: 0;
+        max-height: calc(90vh - 120px);
+        overflow-y: auto;
+    }
+
+    /* 우측 입력 및 버튼 영역 그룹화 */
+    #view-renderer:has(.step-panel-header)>.input-block-wrapper,
+    #view-renderer:has(.step-panel-header)>.cbt-choices-container,
+    #view-renderer:has(.step-panel-header)>.action-toggle-card,
+    #view-renderer:has(.step-panel-header)>.nav-btn-group,
+    #view-renderer:has(.step-panel-header)>#instant-reveal-area {
+        grid-column: 2;
+    }
+
+    /* 대시보드 피드 카드(랜덤/회차별/순차)도 가로 3열로 시원하게 배치 */
+    .feed-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
     }
 }
 
 .header {
-    background-color: #0f172a;
+    background-color: var(--bg-header);
     height: 54px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 14px;
-    color: #ffffff;
-    font-size: 16px;
+    padding: 0 12px;
+    color: var(--header-text);
+    font-size: 15px;
     font-weight: 700;
     box-sizing: border-box;
     flex-shrink: 0;
     z-index: 100;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .header-btn {
@@ -63,17 +186,17 @@ html, body {
     font-weight: bold;
     cursor: pointer;
     user-select: none;
-    background-color: rgba(255, 255, 255, 0.12);
-    padding: 6px 12px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: var(--header-btn-bg);
+    padding: 5px 11px;
+    border-radius: 14px;
+    border: 1px solid var(--header-btn-border);
     transition: all 0.2s ease;
     text-align: center;
+    color: var(--header-text);
 }
 
 .header-btn:active {
     transform: scale(0.95);
-    background-color: rgba(255, 255, 255, 0.2);
 }
 
 #header-center-title {
@@ -82,23 +205,152 @@ html, body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0 8px;
+    padding: 0 6px;
     font-size: 15px;
     font-weight: 800;
     letter-spacing: -0.3px;
+    color: var(--header-text);
+}
+
+.header-right-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.header-dday-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 12px;
+    background-color: var(--dday-badge-bg);
+    color: var(--dday-badge-text);
+    border: 1px solid var(--dday-badge-border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: transform 0.2s ease;
+}
+
+.header-dday-badge:hover {
+    transform: scale(1.05);
+}
+
+.theme-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--header-btn-border);
+    background-color: var(--header-btn-bg);
+    color: var(--header-text);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.theme-icon-btn:hover {
+    transform: rotate(15deg) scale(1.08);
+}
+
+.theme-icon-btn:active {
+    transform: scale(0.92);
 }
 
 .body-container {
     flex: 1;
-    padding: 16px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
     box-sizing: border-box;
-    background-color: #f8fafc;
+    background-color: var(--bg-wrapper);
+    color: var(--text-main);
+    transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* 출강EO 스타일 모바일 피드 카드 레이아웃 */
+/* 문제 풀이 화면 메인 카드 래퍼 (배경과 문제를 뚜렷하게 분리) */
+.question-main-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+    margin-bottom: 14px;
+    transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+/* 상단 메인 D-Day 히어로 카드 */
+.dashboard-dday-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    cursor: pointer;
+}
+
+.dday-left-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dday-sub-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.dday-main-exam-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-title);
+    letter-spacing: -0.3px;
+}
+
+.dday-date-range {
+    font-size: 11.5px;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.dday-count-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--dday-badge-bg);
+    border: 1.5px solid var(--dday-badge-border);
+    color: var(--dday-badge-text);
+    padding: 6px 12px;
+    border-radius: 10px;
+    min-width: 62px;
+}
+
+.dday-count-num {
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+.dday-count-desc {
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 1px;
+}
+
+/* 출강EO 스타일 모바일 피드 카드 */
 .feed-container {
     display: flex;
     flex-direction: column;
@@ -107,19 +359,19 @@ html, body {
 }
 
 .feed-card {
-    background: #ffffff;
+    background-color: var(--bg-card);
     border-radius: 18px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     padding: 16px;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.25s ease;
 }
 
 .feed-card:hover {
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .feed-card-header {
@@ -153,7 +405,7 @@ html, body {
 .feed-status-tag {
     font-size: 11.5px;
     font-weight: 700;
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .feed-card-main {
@@ -172,16 +424,15 @@ html, body {
     justify-content: center;
     font-size: 24px;
     flex-shrink: 0;
-    background: #f1f5f9;
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-color);
 }
 
 .feed-thumb.written {
-    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
     color: #2563eb;
 }
 
 .feed-thumb.practical {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     color: #16a34a;
 }
 
@@ -193,7 +444,7 @@ html, body {
 .feed-title {
     font-size: 15px;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--text-title);
     margin: 0 0 3px 0;
     letter-spacing: -0.3px;
     white-space: nowrap;
@@ -203,7 +454,7 @@ html, body {
 
 .feed-desc {
     font-size: 12px;
-    color: #64748b;
+    color: var(--text-muted);
     margin: 0;
     line-height: 1.4;
     white-space: nowrap;
@@ -211,55 +462,30 @@ html, body {
     text-overflow: ellipsis;
 }
 
-.feed-spec-box {
-    background-color: #f8fafc;
-    border: 1px solid #edf2f7;
-    border-radius: 10px;
-    padding: 9px 12px;
-    margin-bottom: 12px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    font-size: 11.5px;
-}
-
-.feed-spec-item {
-    display: flex;
-    align-items: center;
-    color: #475569;
-}
-
-.feed-spec-label {
-    color: #94a3b8;
-    margin-right: 6px;
-    font-weight: 600;
-}
-
-.feed-spec-val {
+.feed-select {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 14px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-title);
+    background-color: var(--bg-sub-box);
+    border: 1.5px solid var(--border-sub);
+    border-radius: 10px;
+    outline: none;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    cursor: pointer;
 }
 
-/* 코랄 레드 액션 버튼 (출강EO 스타일) */
+.feed-select:focus {
+    border-color: var(--primary);
+    background-color: var(--bg-card);
+}
+
 .card-action-btn {
     width: 100%;
     padding: 12px 0;
     background: linear-gradient(135deg, #ff4d4d 0%, #ff6b6b 100%);
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 800;
-    cursor: pointer;
-    text-align: center;
-    box-shadow: 0 4px 12px rgba(255, 77, 77, 0.22);
-    transition: all 0.2s ease;
-}
-
-.card-action-btn-green {
-    width: 100%;
-    padding: 12px 0;
-    background: linear-gradient(135deg, #05c863 0%, #05c863 100%);
     color: #ffffff;
     border: none;
     border-radius: 10px;
@@ -284,17 +510,17 @@ html, body {
     box-shadow: 0 4px 12px rgba(51, 65, 85, 0.18);
 }
 
-/* 상단 유틸 툴바 (검색 및 데이터 백업/복원) */
+/* 상단 검색 & 백업 툴바 */
 .dashboard-util-bar {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 14px;
     padding: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
 }
 
 .search-input-group {
@@ -309,11 +535,11 @@ html, body {
     padding: 0 6px;
     font-size: 12.5px;
     font-weight: bold;
-    color: #1e293b;
-    border: 1px solid #cbd5e1;
+    color: var(--text-title);
+    border: 1px solid var(--border-sub);
     border-radius: 8px;
     outline: none;
-    background-color: #f8fafc;
+    background-color: var(--bg-sub-box);
 }
 
 .search-input {
@@ -321,18 +547,20 @@ html, body {
     height: 42px;
     padding: 0 12px;
     font-size: 13.5px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-sub);
     border-radius: 8px;
     outline: none;
+    background-color: var(--bg-card);
+    color: var(--text-main);
     box-sizing: border-box;
 }
 
 .search-btn {
     height: 42px;
     padding: 0 14px;
-    background-color: #0f172a;
-    color: #ffffff;
-    border: none;
+    background-color: var(--bg-header);
+    color: var(--header-text);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 13px;
     font-weight: bold;
@@ -347,10 +575,10 @@ html, body {
 .util-sub-btn {
     flex: 1;
     padding: 8px 0;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
-    background-color: #f8fafc;
-    color: #475569;
+    background-color: var(--bg-sub-box);
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -358,41 +586,46 @@ html, body {
 }
 
 .util-sub-btn:active {
-    background-color: #edf2f7;
+    background-color: var(--border-color);
 }
 
-/* 질문 및 풀이 화면 공통 스타일 */
+/* 문제 풀이 요소 스타일 */
 .step-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .step-label {
     font-size: 13px;
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .step-label.clickable {
     cursor: pointer;
-    color: #0284c7;
+    color: var(--primary);
     font-weight: bold;
     padding: 4px 10px;
-    border: 1px solid #bae6fd;
+    border: 1px solid var(--border-color);
     border-radius: 16px;
-    background: #f0f9ff;
+    background-color: var(--bg-sub-box);
 }
 
 .timer-display {
     font-size: 12.5px;
     font-weight: bold;
     color: #dc2626;
-    background: #fee2e2;
+    background-color: #fee2e2;
     padding: 4px 10px;
     border-radius: 12px;
     margin-right: auto;
     margin-left: 10px;
+}
+
+[data-theme="dark"] .timer-display {
+    background-color: #7f1d1d;
+    color: #fca5a5;
 }
 
 .bookmark-toggle-btn {
@@ -403,29 +636,34 @@ html, body {
 }
 
 .source-tag {
+    display: inline-block;
     font-size: 12px;
-    color: #0284c7;
-    font-weight: bold;
-    margin-bottom: 8px;
+    color: var(--primary);
+    font-weight: 800;
+    background-color: var(--primary-bg);
+    padding: 3px 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
 }
 
 .q-title-instruction {
-    font-size: 15px;
+    font-size: 15.5px;
     font-weight: 800;
-    color: #0f172a;
-    line-height: 1.5;
+    color: var(--text-title);
+    line-height: 1.55;
     margin-bottom: 12px;
+    letter-spacing: -0.3px;
 }
 
 .q-desc-card-box {
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-left: 4px solid #0284c7;
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--primary);
     border-radius: 8px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
     font-size: 13.5px;
-    color: #334155;
+    color: var(--text-main);
     line-height: 1.65;
 }
 
@@ -443,22 +681,153 @@ html, body {
     font-size: 13px;
 }
 
+[data-theme="dark"] .q-blank {
+    background-color: #713f12;
+    border-color: #eab308;
+    color: #fef08a;
+}
+
+/* 표(Table) 고대비 스타일 - 다크모드에서도 선명하게 구별 */
+.table-caption-line {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 12px 0 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.quiz-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 6px 0 14px 0;
+    border-radius: 10px;
+    border: 1px solid var(--table-border);
+    background-color: var(--table-td-bg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.quiz-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    color: var(--table-td-text);
+}
+
+.quiz-table th {
+    background-color: var(--table-th-bg);
+    color: var(--table-th-text);
+    font-weight: 800;
+    padding: 9px 10px;
+    border-bottom: 2px solid var(--table-border);
+    border-right: 1px solid var(--table-border);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.quiz-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--table-border);
+    border-right: 1px solid var(--table-border);
+    line-height: 1.5;
+    background-color: var(--table-td-bg);
+    color: var(--table-td-text);
+}
+
+.quiz-table td.col-symbol {
+    text-align: center;
+    font-weight: bold;
+    color: var(--primary);
+}
+
+/* [보기] 전용 칩 컨테이너 - 글자 뭉개짐 방지 및 독립 캡슐 배지화 */
+.view-bogi-container {
+    width: 100%;
+    margin: 10px 0 14px 0;
+    background-color: var(--bogi-box-bg);
+    border: 1.5px solid var(--bogi-box-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-sizing: border-box;
+}
+
+.view-bogi-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-title);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.view-bogi-chip-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.view-bogi-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bogi-chip-bg);
+    border: 1px solid var(--bogi-chip-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--bogi-chip-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    line-height: 1.3;
+    word-break: break-all;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.view-bogi-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--primary);
+    filter: brightness(1.05);
+}
+
+.view-bogi-chip:active {
+    transform: scale(0.96);
+}
+
 .box-view {
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    padding: 14px;
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-color);
+    padding: 12px 14px;
     border-radius: 8px;
     font-size: 13px;
     line-height: 1.6;
-    color: #475569;
+    color: var(--text-main);
     white-space: pre-line;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
-.input-block-wrapper { margin-bottom: 16px; }
+.code-flow-box {
+    background-color: var(--bg-sub-box);
+    color: var(--text-title);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 8px 0 12px 0;
+    font-family: Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    overflow-x: auto;
+}
+
+.input-block-wrapper {
+    margin-bottom: 14px;
+}
+
 .input-label-text {
     font-size: 12.5px;
-    color: #64748b;
+    color: var(--text-muted);
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
@@ -468,18 +837,22 @@ html, body {
     width: 100%;
     padding: 12px 14px;
     font-size: 14.5px;
-    border: 1.5px solid #cbd5e1;
+    border: 1.5px solid var(--border-sub);
     border-radius: 8px;
     box-sizing: border-box;
     outline: none;
-    background: #ffffff;
+    background-color: var(--bg-card);
+    color: var(--text-main);
 }
 
-.input-answer:focus { border-color: #0284c7; }
+.input-answer:focus {
+    border-color: var(--primary);
+}
 
 .action-toggle-card {
-    background-color: #0f172a;
-    color: #ffffff;
+    background-color: var(--bg-header);
+    color: var(--header-text);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     padding: 14px;
     text-align: center;
@@ -488,7 +861,7 @@ html, body {
     cursor: pointer;
     user-select: none;
     margin: 12px 0;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
 .instant-feedback-panel {
@@ -500,6 +873,12 @@ html, body {
     border-left: 5px solid #16a34a;
 }
 
+[data-theme="dark"] .instant-feedback-panel {
+    background-color: #064e3b;
+    border-color: #047857;
+    border-left-color: #10b981;
+}
+
 .nav-btn-group {
     display: flex;
     gap: 10px;
@@ -509,9 +888,9 @@ html, body {
 
 .nav-control-btn {
     flex: 1;
-    background-color: #0f172a;
-    color: #ffffff;
-    border: none;
+    background-color: var(--bg-header);
+    color: var(--header-text);
+    border: 1px solid var(--border-color);
     padding: 13px;
     font-size: 14px;
     font-weight: bold;
@@ -521,21 +900,24 @@ html, body {
 }
 
 .nav-control-btn:disabled {
-    background-color: #cbd5e1;
+    background-color: var(--border-sub);
+    /* color: var(--text-light); */
+    color: #ffffff;
     cursor: not-allowed;
 }
 
 .tab-fixed-bar {
     width: 100%;
     height: 58px;
-    background-color: #ffffff;
-    border-top: 1px solid #e2e8f0;
+    background-color: var(--tab-bg);
+    border-top: 1px solid var(--tab-border);
     display: flex;
     align-items: center;
     justify-content: space-around;
     box-sizing: border-box;
     z-index: 100;
     flex-shrink: 0;
+    transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .tab-unit {
@@ -543,12 +925,19 @@ html, body {
     flex-direction: column;
     align-items: center;
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--text-light);
     cursor: pointer;
 }
 
-.tab-unit.active { color: #0284c7; font-weight: bold; }
-.tab-icon-img { font-size: 18px; margin-bottom: 2px; }
+.tab-unit.active {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.tab-icon-img {
+    font-size: 18px;
+    margin-bottom: 2px;
+}
 
 .cbt-choices-container {
     display: flex;
@@ -560,12 +949,12 @@ html, body {
 .cbt-choice-btn {
     display: flex;
     align-items: center;
-    background-color: #ffffff;
-    border: 1.5px solid #e2e8f0;
+    background-color: var(--bg-card);
+    border: 1.5px solid var(--border-color);
     border-radius: 8px;
     padding: 12px 14px;
     font-size: 13.5px;
-    color: #1e293b;
+    color: var(--text-main);
     cursor: pointer;
     text-align: left;
     outline: none;
@@ -573,9 +962,9 @@ html, body {
 }
 
 .cbt-choice-btn.selected {
-    background-color: #eff6ff;
-    border-color: #3b82f6;
-    color: #1d4ed8;
+    background-color: var(--primary-bg);
+    border-color: var(--primary);
+    color: var(--primary);
     font-weight: bold;
 }
 
@@ -586,7 +975,7 @@ html, body {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background-color: #cbd5e1;
+    background-color: var(--border-sub);
     color: #ffffff;
     font-weight: bold;
     margin-right: 10px;
@@ -595,32 +984,36 @@ html, body {
 }
 
 .cbt-choice-btn.selected .cbt-choice-num {
-    background-color: #3b82f6;
+    background-color: var(--primary);
 }
 
 .log-box-card {
-    background-color: #ffffff;
+    background-color: var(--bg-card);
     border-radius: 12px;
     padding: 14px;
     margin-bottom: 12px;
-    border: 1px solid #e2e8f0;
-    border-top: 4px solid #0f172a;
+    border: 1px solid var(--border-color);
+    border-top: 4px solid var(--bg-header);
     position: relative;
 }
 
 .history-wrong-item {
-    background-color: #fef2f2;
+    background-color: var(--bg-sub-box);
     border-left: 4px solid #ef4444;
     padding: 10px;
     margin-top: 10px;
     font-size: 12.5px;
     border-radius: 4px;
+    color: var(--text-main);
 }
 
 .q-nav-modal-overlay {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
     z-index: 1000;
     display: none;
     justify-content: center;
@@ -628,23 +1021,27 @@ html, body {
 }
 
 .q-nav-modal-content {
-    background: #ffffff;
+    background-color: var(--modal-bg);
+    color: var(--text-main);
     width: 90%;
-    max-height: 70%;
-    border-radius: 12px;
+    max-height: 80%;
+    border-radius: 14px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
 }
 
 .q-nav-modal-header {
     padding: 14px;
-    background: #0f172a;
-    color: #ffffff;
+    background-color: var(--bg-header);
+    color: var(--header-text);
     font-weight: bold;
     text-align: center;
     font-size: 15px;
     position: relative;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .q-nav-modal-close {
@@ -656,60 +1053,50 @@ html, body {
 }
 
 .q-nav-modal-body {
-    padding: 12px;
+    padding: 14px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
-.q-nav-list-btn {
+.schedule-card-row {
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.schedule-badge-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--text-title);
+    margin-bottom: 6px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 12px 14px;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #1e293b;
-    cursor: pointer;
 }
 
-.q-nav-list-btn.current {
-    border: 2px solid #ef4444;
-    background-color: #fef2f2;
-    font-weight: bold;
+.schedule-item-line {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 3px 0;
+    line-height: 1.45;
 }
 
-.q-nav-status {
-    font-size: 11px;
-    padding: 3px 6px;
-    border-radius: 10px;
-    background-color: #cbd5e1;
-    color: #ffffff;
+.schedule-item-line strong {
+    color: var(--text-main);
 }
 
-.q-nav-status.answered { background-color: #0284c7; }
-
-/* 합격 축하 전용 카드 */
 .pass-celebration-card {
     background: linear-gradient(135deg, #10b981, #059669);
     color: #ffffff;
-    padding: 26px 18px;
+    padding: 24px 18px;
     border-radius: 14px;
     margin-bottom: 16px;
     text-align: center;
     box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
 }
 
-.cute-mascot {
-    width: 70px;
-    height: 70px;
-    margin: 0 auto 8px auto;
-}
-
-/* 초기 모드 선택 화면 스타일 */
 .mode-select-container {
     display: flex;
     flex-direction: column;
@@ -725,9 +1112,9 @@ html, body {
     padding: 5px 12px;
     font-size: 11.5px;
     font-weight: 700;
-    color: #0284c7;
-    background-color: #e0f2fe;
-    border: 1px solid #bae6fd;
+    color: var(--primary);
+    background-color: var(--primary-bg);
+    border: 1px solid var(--border-color);
     border-radius: 16px;
     margin-bottom: 14px;
 }
@@ -735,7 +1122,7 @@ html, body {
 .hero-title {
     font-size: 24px;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--text-title);
     line-height: 1.35;
     margin: 0 0 8px 0;
     text-align: center;
@@ -743,7 +1130,7 @@ html, body {
 
 .hero-sub {
     font-size: 13.5px;
-    color: #64748b;
+    color: var(--text-muted);
     line-height: 1.5;
     margin: 0 0 28px 0;
     text-align: center;
@@ -759,18 +1146,26 @@ html, body {
 .modern-mode-card {
     display: flex;
     align-items: center;
-    background: #ffffff;
+    background-color: var(--bg-card);
     border-radius: 16px;
     padding: 18px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.03);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.modern-mode-card:active { transform: scale(0.98); }
-.modern-mode-card.written { border-left: 5px solid #2563eb; }
-.modern-mode-card.practical { border-left: 5px solid #16a34a; }
+.modern-mode-card:active {
+    transform: scale(0.98);
+}
+
+.modern-mode-card.written {
+    border-left: 5px solid #2563eb;
+}
+
+.modern-mode-card.practical {
+    border-left: 5px solid #16a34a;
+}
 
 .card-icon-wrapper {
     width: 48px;
@@ -783,97 +1178,59 @@ html, body {
     flex-shrink: 0;
 }
 
-.written-bg { background-color: #eff6ff; color: #2563eb; }
-.practical-bg { background-color: #f0fdf4; color: #16a34a; }
-
-.card-content { flex: 1; text-align: left; }
-.card-tag { font-size: 11px; font-weight: 700; margin-bottom: 2px; }
-.written-tag { color: #2563eb; }
-.practical-tag { color: #16a34a; }
-.card-title { font-size: 17px; font-weight: 800; color: #1e293b; margin-bottom: 3px; }
-.card-desc { font-size: 12px; color: #64748b; line-height: 1.4; }
-.card-arrow { font-size: 16px; color: #cbd5e1; margin-left: 8px; }
-
-/* 표 및 칩 */
-.quiz-table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    margin: 8px 0 10px 0;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    background-color: #ffffff;
+.written-bg {
+    background-color: var(--bg-sub-box);
+    color: #2563eb;
 }
 
-.quiz-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-    color: #334155;
+.practical-bg {
+    background-color: var(--bg-sub-box);
+    color: #16a34a;
 }
 
-.quiz-table th {
-    background-color: #f1f5f9;
-    color: #0f172a;
-    font-weight: bold;
-    padding: 8px 10px;
-    border-bottom: 2px solid #cbd5e1;
-    border-right: 1px solid #e2e8f0;
-    text-align: center;
+.card-content {
+    flex: 1;
+    text-align: left;
 }
 
-.quiz-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #e2e8f0;
-    border-right: 1px solid #e2e8f0;
-    line-height: 1.45;
+.card-tag {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 2px;
 }
 
-.view-bogi-container {
-    display: inline-block;
-    width: 100%;
-    margin: 6px 0 10px 0;
-    background-color: #f8fafc;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 8px 12px;
-    box-sizing: border-box;
+.written-tag {
+    color: #2563eb;
 }
 
-.view-bogi-title {
-    font-size: 11.5px;
-    font-weight: bold;
-    color: #475569;
-    margin-bottom: 6px;
+.practical-tag {
+    color: #16a34a;
 }
 
-.view-bogi-chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
-.view-bogi-chip {
-    background-color: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 4px 8px;
+.card-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-title);
+    margin-bottom: 3px;
+}
+
+.card-desc {
     font-size: 12px;
-    color: #334155;
+    color: var(--text-muted);
+    line-height: 1.4;
 }
 
-.code-flow-box {
-    background-color: #0f172a;
-    color: #f8fafc;
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin: 8px 0 12px 0;
-    font-family: Consolas, monospace;
-    font-size: 12.5px;
-    line-height: 1.55;
-    white-space: pre-wrap; /* 줄 바꿈 및 공백 들여쓰기 유지 */
-    overflow-x: auto;
+.card-arrow {
+    font-size: 16px;
+    color: var(--text-light);
+    margin-left: 8px;
 }
 
 .app-footer {
     width: 100%;
     padding: 20px 10px 14px 10px;
     margin-top: 20px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border-color);
     text-align: center;
     box-sizing: border-box;
 }
@@ -881,40 +1238,95 @@ html, body {
 .brand-title {
     font-size: 12.5px;
     font-weight: 700;
-    color: #475569;
+    color: var(--text-muted);
     margin: 0 0 4px 0;
 }
 
 .disclaimer-text {
     font-size: 11px;
     line-height: 1.5;
-    color: #94a3b8;
+    color: var(--text-light);
     word-break: keep-all;
     margin: 0 0 6px 0;
 }
 
 .copyright-text {
     font-size: 10px;
-    color: #cbd5e1;
+    color: var(--text-light);
     margin: 0;
 }
-/* 회차 선택 드롭다운 스타일 */
-.feed-select {
-    width: 100%;
-    padding: 12px 14px;
-    font-size: 14px;
-    font-weight: 700;
-    color: #0f172a;
-    background-color: #f8fafc;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 10px;
-    outline: none;
-    margin-bottom: 12px;
-    box-sizing: border-box;
-    cursor: pointer;
+
+
+/* 자격증 선택 카드 - 정보처리기사 */
+.modern-mode-card.cert-qnet {
+    border-left: 5px solid #2563eb;
 }
 
-.feed-select:focus {
-    border-color: #0284c7;
-    background-color: #ffffff;
+.qnet-bg {
+    background-color: var(--bg-sub-box);
+    color: #2563eb;
+}
+
+.qnet-tag {
+    color: #2563eb;
+}
+
+/* 자격증 선택 카드 - 네트워크관리사 2급 */
+.modern-mode-card.cert-net2 {
+    border-left: 5px solid #d97706;
+}
+
+.net2-bg {
+    background-color: var(--bg-sub-box);
+    color: #d97706;
+}
+
+.net2-tag {
+    color: #d97706;
+}
+
+
+/* 2종 캡슐 칩 스위처 스타일 */
+.cert-chip-container {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px;
+    margin-bottom: 18px;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.cert-chip {
+    flex: 1;
+    max-width: 190px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    border-radius: 9999px;
+    border: 1.5px solid var(--border-color);
+    background-color: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.cert-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.cert-chip.active {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="dark"] .cert-chip.active {
+    background-color: var(--primary);
+    color: #0b1120;
+    font-weight: 800;
 }

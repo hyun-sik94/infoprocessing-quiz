@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>정보처리기사 기출문제 풀이</title>
-    <link rel="stylesheet" href="style.css?v=10">
+    <title>IT 자격증 스마트 CBT</title>
+    <link rel="stylesheet" href="style.css?v=20261105_03">
+    <script>
+        // 깜빡임 방지를 위한 초기 테마 즉시 적용
+        const savedTheme = localStorage.getItem("cbt_theme") || "light";
+        document.documentElement.setAttribute("data-theme", savedTheme);
+    </script>
 </head>
 <body>
 
@@ -12,11 +17,14 @@
     <div class="header" style="display:none;">
         <span class="header-btn" onclick="exitToDashboard()">Back</span>
         <span id="header-center-title">기출 메인</span>
-        <span class="header-btn" style="visibility:hidden;">Info</span>
+        <div class="header-right-tools">
+            <span id="header-dday-badge" class="header-dday-badge" onclick="openScheduleModal()" title="시험 일정 보기">D-Day</span>
+            <button id="theme-toggle-btn" class="theme-icon-btn" onclick="toggleTheme()" title="테마 변경">🌙</button>
+        </div>
     </div>
 
     <div class="body-container" id="view-renderer">
-        <!-- 자바스크립트가 모드 선택 화면을 먼저 렌더링합니다 -->
+        <!-- 자바스크립트가 화면을 렌더링합니다 -->
     </div>
 
     <div class="tab-fixed-bar" style="display:none;">
@@ -43,6 +51,19 @@
     </div>
 </div>
 
-<script src="app.js?v=20261022_01"></script>
+<!-- 2026 Q-Net 시험 일정 상세 모달 -->
+<div id="schedule-modal" class="q-nav-modal-overlay" onclick="closeScheduleModal(event)">
+    <div class="q-nav-modal-content" onclick="event.stopPropagation()">
+        <div class="q-nav-modal-header">
+            📅 2026년 정기 기사 시험 일정
+            <span class="q-nav-modal-close" onclick="closeScheduleModal()">✕</span>
+        </div>
+        <div class="q-nav-modal-body" id="schedule-modal-body">
+            <!-- 자바스크립트가 일정 상세를 렌더링합니다 -->
+        </div>
+    </div>
+</div>
+
+<script src="app.js?v=20261105_03"></script>
 </body>
 </html>
