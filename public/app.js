@@ -6,6 +6,7 @@ let activeSessionYear = null;
 let activeSessionType = null;
 let activeQuizLabel = "";
 let revealedAnswers = {};
+let feedbackHiddenByUser = {};
 let globalTabState = "all";
 
 let currentAppMode = null; 
@@ -84,9 +85,17 @@ function initTheme() {
 }
 
 function toggleTheme() {
-    const current = document.documentElement.getAttribute("data-theme") || "light";
+    const root = document.documentElement;
+    const current = root.getAttribute("data-theme") || "light";
     const next = (current === "dark") ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
+
+    // 전환 중 transition을 잠시 꺼서 이전 테마 색이 화면에 남는 문제 방지
+    root.classList.add("theme-switching");
+    root.setAttribute("data-theme", next);
+    void root.offsetHeight; // 강제 리플로우로 새 색상 즉시 반영
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => root.classList.remove("theme-switching"));
+    });
     localStorage.setItem("cbt_theme", next);
     updateThemeButtonUI(next);
     logUserAction("THEME_TOGGLE", { theme: next });
@@ -1580,7 +1589,11 @@ function updateTimerDisplay() {
 
 window.openQuestionNavModal = function() {
     const modal = document.getElementById("q-nav-modal");
-    if(modal) modal.style.display = "flex";
+    if (!modal) return;
+    modal.style.display = "flex";
+    // 현재 문항이 보이도록 스크롤
+    const cur = modal.querySelector(".q-nav-item.current");
+    if (cur) cur.scrollIntoView({ block: "center" });
 };
 
 window.closeQuestionNavModal = function(event) {
@@ -1667,6 +1680,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
             }
 
             revealedAnswers = {};
+            feedbackHiddenByUser = {};
             activeInputRef = null;
             startQuizTimer(false);
         } else {
@@ -1678,6 +1692,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
             }
             savedUserAnswers = {};
             revealedAnswers = {};
+            feedbackHiddenByUser = {};
             activeInputRef = null;
             startQuizTimer(true);
         }
@@ -1846,7 +1861,16 @@ function handleChoiceClick(val) {
 
 window.selectWrittenAnswer = function(qId, choiceNum) {
     savedUserAnswers[qId] = choiceNum;
-    renderSingleQuestion(); 
+    // DOM 직접 조작으로 선택 상태 변경 (전체 재렌더링 없이 스크롤 유지)
+    const allBtns = document.querySelectorAll(".cbt-choice-btn");
+    allBtns.forEach(btn => {
+        const numSpan = btn.querySelector(".cbt-choice-num");
+        if (numSpan && numSpan.textContent === choiceNum) {
+            btn.classList.add("selected");
+        } else {
+            btn.classList.remove("selected");
+        }
+    });
 };
 
 function focusInitialField(q) {
@@ -1928,6 +1952,11 @@ function renderSingleQuestion() {
     
     let choicesHtml = extractChoices(q);
 
+    const answeredCount = sessionQuizData.filter(question => {
+        const a = savedUserAnswers[question.id] || "";
+        return a.replace(/,/g, '').replace(/\//g, '').trim() !== "";
+    }).length;
+
     let modalHtml = `
         <div id="q-nav-modal" class="q-nav-modal-overlay" onclick="closeQuestionNavModal(event)">
             <div class="q-nav-modal-content" onclick="event.stopPropagation()">
@@ -1935,24 +1964,31 @@ function renderSingleQuestion() {
                     전체 문항 이동
                     <span class="q-nav-modal-close" onclick="closeQuestionNavModal()">✕</span>
                 </div>
-                <div class="q-nav-modal-body">
+                <div class="q-nav-modal-body q-nav-body-grid">
+                    <div class="q-nav-summary">
+                        <div>풀이 완료 <strong>${answeredCount}</strong> / ${sessionQuizData.length}</div>
+                        <div class="q-nav-legend">
+                            <span><i class="answered"></i>풀이</span>
+                            <span><i></i>미풀이</span>
+                            <span><i class="current"></i>현재</span>
+                        </div>
+                    </div>
+                    <div class="q-nav-grid">
     `;
-    
+
     sessionQuizData.forEach((question, idx) => {
         const cachedAns = savedUserAnswers[question.id] || "";
         const isAnswered = cachedAns.replace(/,/g, '').replace(/\//g, '').trim() !== "";
-        const isCurrent = idx === currentQuizIndex ? 'current' : '';
-        const statusHtml = isAnswered ? `<span class="q-nav-status answered">풀이 완료</span>` : `<span class="q-nav-status">미풀이</span>`;
-        
-        modalHtml += `
-            <div class="q-nav-list-btn ${isCurrent}" onclick="jumpToQuestion(${idx})">
-                <span>${idx + 1}번 문항</span>
-                ${statusHtml}
-            </div>
-        `;
+        const classes = ["q-nav-item"];
+        if (isAnswered) classes.push("answered");
+        if (idx === currentQuizIndex) classes.push("current");
+        const title = `${idx + 1}번 문항 ${isAnswered ? "풀이 완료" : "미풀이"}`;
+
+        modalHtml += `<button type="button" class="${classes.join(" ")}" title="${title}" aria-label="${title}" onclick="jumpToQuestion(${idx})">${idx + 1}</button>`;
     });
 
     modalHtml += `
+                    </div>
                 </div>
             </div>
         </div>
@@ -1996,7 +2032,8 @@ function renderSingleQuestion() {
     container.scrollTop = 0;
     
     updateTimerDisplay();
-    if (revealedAnswers[q.id]) showAnswerBoxInline(q, revealedAnswers[q.id]);
+    // 이전에 정답 확인했더라도, 사용자가 숨긴 상태면 자동 표시하지 않음
+    if (revealedAnswers[q.id] && !feedbackHiddenByUser[q.id]) showAnswerBoxInline(q, revealedAnswers[q.id]);
     focusInitialField(q);
 }
 
@@ -2006,8 +2043,10 @@ async function toggleInstantFeedbackReveal(qId) {
     if (revealedAnswers[qId]) {
         const panelArea = document.getElementById("instant-reveal-area");
         if (panelArea && panelArea.innerHTML !== "") {
+            feedbackHiddenByUser[qId] = true;
             hideAnswerBoxInline();
         } else {
+            feedbackHiddenByUser[qId] = false;
             showAnswerBoxInline(q, revealedAnswers[qId]);
         }
     } else {
@@ -2025,7 +2064,8 @@ async function toggleInstantFeedbackReveal(qId) {
                 return;
             }
             
-            revealedAnswers[qId] = data; 
+            revealedAnswers[qId] = data;
+            feedbackHiddenByUser[qId] = false;
             showAnswerBoxInline(q, data);
         } catch(e) {
             console.error("정답 조회 오류:", e);
