@@ -35,6 +35,18 @@ function loadQuestions(type) {
     return JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 }
 
+/**
+ * Fisher-Yates 기반 배열 무작위 셔플 헬퍼
+ */
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 // ──────────────────────────────────────────────
 // 컨트롤러 메서드
 // ──────────────────────────────────────────────
@@ -130,20 +142,22 @@ function getNewQuiz(req, res) {
             selectedQuestions = questions;
             label = isWritten ? "필기 전체 순차 풀이" : "실기 전체 순차 풀이";
         } else if (subject) {
-            selectedQuestions = questions.filter(q => q.subject === subject);
+            selectedQuestions = shuffleArray(questions.filter(q => q.subject === subject));
             label = `${subject} 집중 풀이 (${selectedQuestions.length}문항)`;
         } else if (year === 'cbt' || year === 'all') {
             const count = isWritten ? 50 : 20;
-            const shuffled = [...questions].sort(() => 0.5 - Math.random());
+            const shuffled = shuffleArray(questions);
             selectedQuestions = shuffled.slice(0, count);
             label = isWritten ? "필기 실전 모의고사 (50제)" : "실기 무작위 20문항";
         } else {
             // 선택된 연도 또는 회차 매칭 (공백 무시)
             const cleanTarget = String(year || '').replace(/\s+/g, '').replace('년도', '년');
-            selectedQuestions = questions.filter(q => {
+            const matched = questions.filter(q => {
                 const cleanSource = String(q.source || '').replace(/\s+/g, '').replace('년도', '년');
                 return cleanSource.includes(cleanTarget);
             });
+            // 회차 문제풀이 시에도 정형화 방지를 위해 문제 순서 무작위 셔플
+            selectedQuestions = shuffleArray(matched);
             label = `${year} 기출 풀이`;
         }
 
