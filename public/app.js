@@ -1592,8 +1592,17 @@ window.openQuestionNavModal = function() {
     if (!modal) return;
     modal.style.display = "flex";
     // 현재 문항이 보이도록 스크롤
-    const cur = modal.querySelector(".q-nav-item.current");
+    const cur = modal.querySelector(".q-nav-row.current");
     if (cur) cur.scrollIntoView({ block: "center" });
+};
+
+window.setQuestionNavFilter = function(filter) {
+    const modal = document.getElementById("q-nav-modal");
+    if (!modal) return;
+    modal.setAttribute("data-filter", filter);
+    modal.querySelectorAll(".q-nav-filter").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-f") === filter);
+    });
 };
 
 window.closeQuestionNavModal = function(event) {
@@ -1957,43 +1966,56 @@ function renderSingleQuestion() {
         return a.replace(/,/g, '').replace(/\//g, '').trim() !== "";
     }).length;
 
+    const totalCount = sessionQuizData.length;
+    const remainCount = totalCount - answeredCount;
+    const progressPct = totalCount ? Math.round((answeredCount / totalCount) * 100) : 0;
+
     let modalHtml = `
-        <div id="q-nav-modal" class="q-nav-modal-overlay" onclick="closeQuestionNavModal(event)">
+        <div id="q-nav-modal" class="q-nav-modal-overlay" data-filter="all" onclick="closeQuestionNavModal(event)">
             <div class="q-nav-modal-content" onclick="event.stopPropagation()">
                 <div class="q-nav-modal-header">
                     전체 문항 이동
                     <span class="q-nav-modal-close" onclick="closeQuestionNavModal()">✕</span>
                 </div>
-                <div class="q-nav-modal-body q-nav-body-grid">
+                <div class="q-nav-top">
                     <div class="q-nav-summary">
-                        <div>풀이 완료 <strong>${answeredCount}</strong> / ${sessionQuizData.length}</div>
-                        <div class="q-nav-legend">
-                            <span><i class="answered"></i>풀이</span>
-                            <span><i></i>미풀이</span>
-                            <span><i class="current"></i>현재</span>
-                        </div>
+                        <div class="q-nav-count">풀이 <strong>${answeredCount}</strong> / ${totalCount} <span class="q-nav-pct">${progressPct}%</span></div>
                     </div>
-                    <div class="q-nav-grid">
+                    <div class="q-nav-progress"><div class="q-nav-progress-bar" style="width:${progressPct}%"></div></div>
+                    <div class="q-nav-filters">
+                        <button type="button" class="q-nav-filter active" data-f="all" onclick="setQuestionNavFilter('all')">전체 ${totalCount}</button>
+                        <button type="button" class="q-nav-filter" data-f="todo" onclick="setQuestionNavFilter('todo')">미풀이 ${remainCount}</button>
+                        <button type="button" class="q-nav-filter" data-f="done" onclick="setQuestionNavFilter('done')">풀이 ${answeredCount}</button>
+                    </div>
+                </div>
+                <div class="q-nav-list">
     `;
 
     sessionQuizData.forEach((question, idx) => {
         const cachedAns = savedUserAnswers[question.id] || "";
         const isAnswered = cachedAns.replace(/,/g, '').replace(/\//g, '').trim() !== "";
-        const classes = ["q-nav-item"];
-        if (isAnswered) classes.push("answered");
-        if (idx === currentQuizIndex) classes.push("current");
-        const title = `${idx + 1}번 문항 ${isAnswered ? "풀이 완료" : "미풀이"}`;
+        const isCurrent = idx === currentQuizIndex;
+        const classes = ["q-nav-row", isAnswered ? "answered" : "todo"];
+        if (isCurrent) classes.push("current");
+        const chip = isAnswered
+            ? `<span class="q-nav-chip done">✓ 풀이 완료</span>`
+            : `<span class="q-nav-chip todo">미풀이</span>`;
+        const curTag = isCurrent ? `<span class="q-nav-cur-tag">현재</span>` : "";
 
-        modalHtml += `<button type="button" class="${classes.join(" ")}" title="${title}" aria-label="${title}" onclick="jumpToQuestion(${idx})">${idx + 1}</button>`;
+        modalHtml += `
+            <button type="button" class="${classes.join(" ")}" onclick="jumpToQuestion(${idx})">
+                <span class="q-nav-num">${idx + 1}</span>
+                <span class="q-nav-label">${idx + 1}번 문항 ${curTag}</span>
+                ${chip}
+            </button>`;
     });
 
     modalHtml += `
-                    </div>
                 </div>
             </div>
         </div>
     `;
-    
+
    let html = `
         <div class="question-main-card">
             <div class="step-panel-header">
