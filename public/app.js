@@ -909,6 +909,8 @@ function loadModeSelectionScreen(isPopstate = false) {
             <div class="hero-badge">${meta.badge}</div>
             <h1 class="hero-title">${meta.name}<br>스마트 기출 풀이</h1>
             <p class="hero-sub">${meta.sub}</p>
+
+            ${buildResumeCardHtml(null)}
             
             <div class="mode-card-group">
                 <div class="modern-mode-card written" onclick="setAppMode('written')">
@@ -974,7 +976,7 @@ function startSubjectQuiz(subjectName) {
 }
 
 function startSingleQuestionQuiz(qId) {
-    triggerNewQuizSession('target', null, null, qId);
+    return triggerNewQuizSession('target', null, null, qId);
 }
 
 // 성과 분석 화면 (정상 평균/합격률 산출 로직 적용)
@@ -1144,6 +1146,7 @@ function loadMainDashboard(isPopstate = false) {
     const defaultPlaceholder = isWritten ? "정답 용어/문구 입력" : "기억나는 정답 용어 입력";
 
     let dashboardHtml = `
+        ${buildResumeCardHtml(currentAppMode)}
         <div class="dashboard-util-bar">
             <span class="input-label-text">${searchSectionTitle}</span>
             <div class="search-input-group">
@@ -1655,8 +1658,14 @@ function updateTimerDisplay() {
 // ──────────────────────────────────────────────
 // 회차(연도) 풀이 진행도 저장: 풀던 답안·문항 순서·현재 위치·남은 시간을 기기에 저장해 이어풀기를 지원한다
 // ──────────────────────────────────────────────
-const NON_ROUND_YEARS = ['sequential', 'subject', 'bookmark', 'target', 'cbt', 'all'];
+const NON_ROUND_YEARS = ['sequential', 'subject', 'bookmark', 'target'];
+// 저장·이어풀기 대상: 회차(연도) 풀이와 랜덤 모의고사(cbt/all)
 function isRoundYear(year) { return !!year && !NON_ROUND_YEARS.includes(year); }
+function sessionYearTitle(year) {
+    if (year === 'cbt' || year === 'all') return '랜덤 모의고사';
+    if (year === 'sequential') return '전체 문항 순서대로 풀기';
+    return year;
+}
 function isRoundSession() { return !!activeSessionId && isRoundYear(activeSessionYear); }
 // 순차 풀이와 회차 풀이는 진행 상황이 저장되는 세션이다
 function isProgressSavedSession() { return activeSessionYear === 'sequential' || isRoundSession(); }
@@ -1711,6 +1720,101 @@ function saveRoundProgress() {
     };
     try { localStorage.setItem(getRoundSaveKey(), JSON.stringify(map)); } catch (e) { /* 저장 공간 부족 등은 무시 */ }
 }
+
+// ──────────────────────────────────────────────
+// 이어서 풀기: 저장된 풀이(회차·순차)를 모아 카드로 보여 주고, 버튼으로 바로 이어서 시작한다
+// ──────────────────────────────────────────────
+function listSavedSessions(modeFilter) {
+    const items = [];
+    Object.values(loadRoundProgressMap()).forEach(e => {
+        if (!isValidRoundProgress(e) || !e.year || !e.mode) return;
+        if (modeFilter && e.mode !== modeFilter) return;
+        items.push({ kind: 'round', mode: e.mode, year: e.year, index: e.currentQuizIndex, answered: e.answered || 0, total: e.total || e.ids.length, savedAt: e.savedAt || 0 });
+    });
+    try {
+        const raw = localStorage.getItem(getSeqSaveKey());
+        const st = raw ? JSON.parse(raw) : null;
+        if (st && typeof st === 'object' && st.activeSessionType && Number.isInteger(st.currentQuizIndex) && st.savedUserAnswers && typeof st.savedUserAnswers === 'object') {
+            if (!modeFilter || st.activeSessionType === modeFilter) {
+                const answered = Object.values(st.savedUserAnswers).filter(v => isAnsweredValue(v)).length;
+                if (answered > 0 || st.currentQuizIndex > 0) {
+                    items.push({ kind: 'sequential', mode: st.activeSessionType, year: 'sequential', index: st.currentQuizIndex, answered: answered, total: 0, savedAt: st.savedAt || 0 });
+                }
+            }
+        }
+    } catch (e) { /* 손상된 저장본은 무시 */ }
+    return items.sort((a, b) => b.savedAt - a.savedAt);
+}
+
+function formatSavedTime(ts) {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return '방금 전';
+    if (min < 60) return `${min}분 전`;
+    const hour = Math.floor(min / 60);
+    if (hour < 24) return `${hour}시간 전`;
+    const day = Math.floor(hour / 24);
+    if (day === 1) return '어제';
+    if (day < 7) return `${day}일 전`;
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+// modeFilter: 'written' | 'practical' (대시보드), null (첫 화면: 필기·실기 모두)
+function buildResumeCardHtml(modeFilter) {
+    const items = listSavedSessions(modeFilter).slice(0, 4);
+    if (items.length === 0) return '';
+
+    const rows = items.map(it => {
+        const modeTag = modeFilter ? '' : `<span class="resume-mode-tag">${it.mode === 'written' ? '필기' : '실기'}</span>`;
+        const title = sessionYearTitle(it.year);
+        const pct = it.total ? Math.min(100, Math.round((it.answered / it.total) * 100)) : 0;
+        const detail = it.total ? `${it.answered}/${it.total}문항 풀이` : `${it.answered}문항 풀이`;
+        const when = formatSavedTime(it.savedAt);
+        const bar = it.total ? `<div class="resume-progress"><div class="resume-progress-bar" style="width:${pct}%"></div></div>` : '';
+        const attrs = `data-kind="${it.kind}" data-mode="${escapeHtml(it.mode)}" data-year="${escapeHtml(it.year)}"`;
+        return `
+            <div class="resume-item">
+                <div class="resume-info">
+                    <div class="resume-title">${modeTag}<span>${escapeHtml(title)}</span></div>
+                    <div class="resume-meta">${it.index + 1}번 문항까지 진행 · ${detail}${when ? ' · ' + when : ''}</div>
+                    ${bar}
+                </div>
+                <div class="resume-actions">
+                    <button type="button" class="resume-go-btn" ${attrs} onclick="resumeSavedSession(this)">이어서 풀기 ➔</button>
+                    <button type="button" class="resume-discard-btn" ${attrs} onclick="discardSavedSession(this)" aria-label="저장된 풀이 삭제" title="저장된 풀이 삭제">✕</button>
+                </div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="resume-card">
+            <div class="resume-card-head">
+                <span class="resume-badge">▶ 이어서 풀기</span>
+                <span class="resume-sub">풀던 문제가 있어요</span>
+            </div>
+            ${rows}
+        </div>`;
+}
+
+// 저장된 풀이를 확인창 없이 바로 이어서 시작한다 (첫 화면에서 누르면 해당 모드 대시보드를 거쳐 바로 풀이로 이동)
+window.resumeSavedSession = function(btn) {
+    const mode = btn.dataset.mode;
+    const year = btn.dataset.year;
+    if (currentAppMode !== mode) setAppMode(mode);
+    triggerNewQuizSession(year, null, null, null, 'resume');
+};
+
+window.discardSavedSession = function(btn) {
+    if (!confirm("저장된 풀이 기록을 삭제하시겠습니까?\n삭제하면 이어서 풀 수 없습니다.")) return;
+    if (btn.dataset.kind === 'sequential') {
+        localStorage.removeItem(getSeqSaveKey());
+    } else {
+        clearRoundProgress(btn.dataset.mode, btn.dataset.year);
+    }
+    if (currentAppMode) loadMainDashboard(); else loadModeSelectionScreen();
+};
 
 // 풀이 여부: 보기 번호가 있거나, 실기 입력칸 중 하나라도 값이 있으면 풀이 완료
 function isAnsweredValue(value) {
@@ -1804,7 +1908,7 @@ window.jumpToQuestion = function(index) {
     renderSingleQuestion();
 };
 
-async function triggerNewQuizSession(customYear, customIds, customSubject, customTargetId) {
+async function triggerNewQuizSession(customYear, customIds, customSubject, customTargetId, resumeMode) {
     let selectedYear = customYear;
     let bookmarkIds = customIds || [];
     
@@ -1816,7 +1920,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
     if (selectedYear === 'sequential' && localStorage.getItem(getSeqSaveKey())) {
         const savedState = JSON.parse(localStorage.getItem(getSeqSaveKey()));
         if (savedState.activeSessionType === currentAppMode) {
-            const shouldResume = customTargetId ? true : confirm("이전에 멈춤 기록이 존재합니다. 이어서 풀이하시겠습니까? (취소 시 1번부터 시작)");
+            const shouldResume = (customTargetId || resumeMode === 'resume') ? true : confirm("이전에 멈춤 기록이 존재합니다. 이어서 풀이하시겠습니까? (취소 시 1번부터 시작)");
             if (shouldResume) {
                 resumeState = savedState;
             } else {
@@ -1833,8 +1937,8 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         const entry = getRoundProgress(selectedYear);
         if (entry) {
             const savedTime = new Date(entry.savedAt).toLocaleString('ko-KR');
-            const resumeMsg = `이전에 풀던 기록이 있습니다.\n${selectedYear} · ${entry.answered}/${entry.total}문항 풀이 (${entry.currentQuizIndex + 1}번 문항까지 진행)\n저장 시각: ${savedTime}\n\n이어서 풀이하시겠습니까?\n[확인] 이어풀기    [취소] 처음부터 새로 시작`;
-            if (confirm(resumeMsg)) {
+            const resumeMsg = `이전에 풀던 기록이 있습니다.\n${sessionYearTitle(selectedYear)} · ${entry.answered}/${entry.total}문항 풀이 (${entry.currentQuizIndex + 1}번 문항까지 진행)\n저장 시각: ${savedTime}\n\n이어서 풀이하시겠습니까?\n[확인] 이어풀기    [취소] 처음부터 새로 시작`;
+            if (resumeMode === 'resume' || confirm(resumeMsg)) {
                 roundResume = entry;
             } else {
                 clearRoundProgress(currentAppMode, selectedYear);
@@ -1861,18 +1965,25 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
                 solvedIds: allSolvedIds,
                 examType: currentAppMode,
                 subject: customSubject || null,
-                targetQuestionId: customTargetId || null,
+                // 순차 풀이에서 customTargetId는 "이 문항 위치로 이동"용이다. 서버로 보내면 1문항만 돌려주므로 보내지 않는다.
+                targetQuestionId: (selectedYear === 'sequential') ? null : (customTargetId || null),
                 resumeIds: roundResume ? roundResume.ids : null
             })
         });
         const rawData = await res.json();
         const data = parseSecurePayload(rawData);
 
-        // 저장된 문항 구성이 현재 문제 데이터와 맞지 않으면(데이터가 바뀐 경우) 저장본을 버리고 처음부터 시작한다
-        if (roundResume && (!data.questions || data.questions.length !== roundResume.ids.length || data.questions.some((q, i) => q.id !== roundResume.ids[i]))) {
-            clearRoundProgress(currentAppMode, selectedYear);
-            alert("저장된 풀이 기록이 현재 문제 데이터와 달라, 처음부터 시작합니다.");
-            return triggerNewQuizSession(customYear, customIds, customSubject, customTargetId);
+        // 저장된 문항 구성이 현재 문제 데이터와 맞지 않으면(데이터가 바뀐 경우) 저장본을 버리고 처음부터 시작한다.
+        // 서버가 문항 순서를 섞어 보내더라도(서버가 아직 이어풀기를 모르는 옛 버전) 저장된 순서대로 다시 정렬한다.
+        if (roundResume) {
+            const byId = new Map((data.questions || []).map(q => [q.id, q]));
+            const ordered = roundResume.ids.map(id => byId.get(id)).filter(Boolean);
+            if (ordered.length !== roundResume.ids.length) {
+                clearRoundProgress(currentAppMode, selectedYear);
+                alert("저장된 풀이 기록이 현재 문제 데이터와 달라, 처음부터 시작합니다.");
+                return triggerNewQuizSession(customYear, customIds, customSubject, customTargetId);
+            }
+            data.questions = ordered;
         }
         if (roundResume) resumeState = roundResume;
         
@@ -2111,10 +2222,14 @@ function focusInitialField(q) {
 
 // 풀이 중인 문항의 URL (새로고침·뒤로가기 취소 후에도 같은 문항을 가리키게 한다)
 function getExamUrl(q) {
+    const cert = currentCertType || 'qnet';
     if (activeSessionYear === 'sequential') {
-        return `?mode=${currentAppMode}&year=sequential&id=${q.id}&cert=${currentCertType || 'qnet'}`;
+        return `?mode=${currentAppMode}&year=sequential&id=${q.id}&cert=${cert}`;
     }
-    return `?mode=${currentAppMode}&id=${q.id}&cert=${currentCertType || 'qnet'}`;
+    if (isRoundYear(activeSessionYear)) {
+        return `?mode=${currentAppMode}&id=${q.id}&cert=${cert}&round=${encodeURIComponent(activeSessionYear)}`;
+    }
+    return `?mode=${currentAppMode}&id=${q.id}&cert=${cert}`;
 }
 
 function renderSingleQuestion() {
@@ -2137,7 +2252,8 @@ function renderSingleQuestion() {
             activeSessionType: activeSessionType,
             currentQuizIndex: currentQuizIndex,
             savedUserAnswers: savedUserAnswers,
-            remainingTimeSeconds: remainingTimeSeconds 
+            remainingTimeSeconds: remainingTimeSeconds,
+            savedAt: Date.now()
         };
         localStorage.setItem(getSeqSaveKey(), JSON.stringify(saveState));
     }
@@ -2700,19 +2816,30 @@ window.onload = function() {
     const targetId = urlParams.get('id');
     const mode = urlParams.get('mode');
     const year = urlParams.get('year');
+    const round = urlParams.get('round');
 
     const cert = urlParams.get('cert');
     if (targetId) {
         currentCertType = (cert === 'net2') ? 'net2' : 'qnet';
         currentAppMode = (mode === 'written') ? 'written' : 'practical';
         globalTabState = 'all';
+        // 새로고침으로 바로 풀이 화면에 들어오는 경우에도 상단 헤더(Back)와 하단 탭바가 보여야 한다
+        document.querySelector(".tab-fixed-bar").style.display = "flex";
+        document.querySelector(".header").style.display = "flex";
         updateBottomTabUI();
         updateHeaderDDayBadge();
+
+        let started;
         if (year === 'sequential') {
-            triggerNewQuizSession('sequential', null, null, parseInt(targetId, 10));
+            started = triggerNewQuizSession('sequential', null, null, parseInt(targetId, 10), 'resume');
+        } else if (round && isRoundYear(round)) {
+            // 회차 풀이·랜덤 모의고사: 저장된 진행(답안·문항 순서·위치·남은 시간)으로 복원. 저장본이 없으면 처음부터 시작.
+            started = triggerNewQuizSession(round, null, null, null, 'resume');
         } else {
-            startSingleQuestionQuiz(parseInt(targetId, 10));
+            started = startSingleQuestionQuiz(parseInt(targetId, 10));
         }
+        // 풀이를 시작하지 못했다면(잘못된 주소 등) 빈 화면 대신 대시보드로 보낸다
+        Promise.resolve(started).then(() => { if (!activeSessionId) loadMainDashboard(); });
     } else {
         loadModeSelectionScreen();
     }
