@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical } = require('../lib/quiz-utils');
 
 // ──────────────────────────────────────────────
 // 네트워크관리사 2급 전용 인메모리 세션 저장소
@@ -121,7 +122,7 @@ function getRounds(req, res) {
  */
 function getNewQuiz(req, res) {
     try {
-        const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId } = req.body;
+        const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId, resumeIds } = req.body;
         const isWritten = (examType === 'written');
         const questions = loadQuestions(examType || 'practical');
 
@@ -131,12 +132,18 @@ function getNewQuiz(req, res) {
 
         let selectedQuestions = [];
         let label = isWritten ? "필기 모의고사" : "실기 모의고사";
+        const bookmarkIdList = normalizeBookmarkIds(bookmarkIds);
 
         if (targetQuestionId) {
             selectedQuestions = questions.filter(q => q.id === parseInt(targetQuestionId, 10));
             label = "단일 문항 학습";
-        } else if (bookmarkIds && bookmarkIds.length > 0) {
-            selectedQuestions = questions.filter(q => bookmarkIds.includes(q.id));
+        } else if (isRoundResume(year, resumeIds)) {
+            // 이어풀기: 저장해 둔 문항 id 순서 그대로 세션을 복원한다 (회차 풀이는 문항 순서가 섞이므로 순서 보존이 필요)
+            const byId = new Map(questions.map(q => [q.id, q]));
+            selectedQuestions = [...new Set(resumeIds)].map(id => byId.get(id)).filter(Boolean);
+            label = `${year} 기출 풀이`;
+        } else if (bookmarkIdList.length > 0) {
+            selectedQuestions = questions.filter(q => bookmarkIdList.includes(q.id));
             label = "즐겨찾기 모의고사";
         } else if (year === 'sequential') {
             selectedQuestions = questions;
@@ -146,8 +153,8 @@ function getNewQuiz(req, res) {
             label = `${subject} 집중 풀이 (${selectedQuestions.length}문항)`;
         } else if (year === 'cbt' || year === 'all') {
             const count = isWritten ? 50 : 20;
-            const shuffled = shuffleArray(questions);
-            selectedQuestions = shuffled.slice(0, count);
+            // 회차 간 재출제된 동일 문항(문제+보기 동일)이 한 세션에 중복 출제되지 않도록 제거
+            selectedQuestions = dedupeQuestions(shuffleArray(questions)).slice(0, count);
             label = isWritten ? "필기 실전 모의고사 (50제)" : "실기 무작위 20문항";
         } else {
             // 선택된 연도 또는 회차 매칭 (공백 무시)
@@ -256,27 +263,17 @@ function submitQuiz(req, res) {
                 }
                 earnedScoreSum += earnedScore;
             } else {
-                // 실기 채점: 복수 정답 부분점수 적용
-                const userParts = userAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-                const realParts = realAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-                let matchedCount = 0;
-
-                realParts.forEach(rp => {
-                    if (userParts.includes(rp)) matchedCount++;
-                });
-
-                if (realParts.length > 0 && matchedCount === realParts.length) {
-                    isRight = true;
-                    earnedScore = 5;
-                } else if (matchedCount > 0 && realParts.length > 1) {
-                    earnedScore = Math.floor((matchedCount / realParts.length) * 5 * 10) / 10;
-                }
+                // 실기 채점: 복수 정답 부분점수, '|' 대체 표기 지원 (lib/quiz-utils.js)
+                const result = scorePractical(userAns, realAns, q.inputCount);
+                isRight = result.isRight;
+                earnedScore = result.earned;
                 earnedScoreSum += earnedScore;
             }
 
             return {
                 id: q.id,
-                type: q.type,
+                type: q.type || (isWritten ? 'written' : 'practical'),
+                subject: q.subject || null,
                 source: q.source,
                 text: q.text,
                 view: q.view || null,
@@ -295,8 +292,8 @@ function submitQuiz(req, res) {
         let finalScore = 0;
 
         if (isWritten) {
-            // 필기: 획득 점수 합계 그대로 (50문항 × 2점 = 100점 만점)
-            finalScore = earnedScoreSum;
+            // 필기: 문항당 2점 만점 대비 비율로 100점 환산 (50문항이 아닌 세션에서도 100점 만점)
+            finalScore = totalQuestions > 0 ? Math.round((earnedScoreSum / (totalQuestions * 2)) * 100) : 0;
         } else {
             // 실기: 총점 대비 비율 환산
             const totalMaxScore = totalQuestions * 5;
