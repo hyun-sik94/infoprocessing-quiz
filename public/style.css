@@ -524,10 +524,12 @@ body {
     display: flex;
     gap: 6px;
     align-items: center;
+    min-width: 0;
 }
 
 .search-select {
     width: 78px;
+    flex-shrink: 0;
     height: 42px;
     padding: 0 6px;
     font-size: 12.5px;
@@ -540,7 +542,8 @@ body {
 }
 
 .search-input {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0; /* 입력칸이 줄어들 수 있어야 좁은 화면에서 검색 버튼이 영역 밖으로 밀려나지 않는다 */
     height: 42px;
     padding: 0 12px;
     font-size: 13.5px;
@@ -553,6 +556,8 @@ body {
 }
 
 .search-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
     height: 42px;
     padding: 0 14px;
     background-color: var(--bg-header);
@@ -1330,6 +1335,10 @@ body {
     color: var(--text-muted);
     cursor: pointer;
     text-align: center;
+    word-break: keep-all; /* "네트워크관리사 2급"이 "2 / 급"으로 쪼개지지 않게 단어 단위로 줄바꿈 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
     user-select: none;
 }
@@ -1956,4 +1965,143 @@ body {
 .feedback-btn:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   이어서 풀기 카드 (저장된 풀이로 바로 이동)
+   ────────────────────────────────────────────────────────── */
+.resume-card {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    margin: 0 0 14px 0;
+    padding: 12px 14px 4px 14px;
+    background: linear-gradient(135deg, var(--primary-bg) 0%, var(--bg-card) 70%);
+    border: 1.5px solid var(--primary);
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12);
+}
+
+.resume-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.resume-badge {
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #ffffff;
+    background-color: #0369a1;
+    border-radius: 999px;
+}
+
+[data-theme="dark"] .resume-badge {
+    color: var(--on-primary);
+    background-color: var(--primary);
+}
+
+.resume-sub {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.resume-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-top: 1px dashed var(--border-sub);
+}
+
+.resume-card-head + .resume-item {
+    border-top: none;
+}
+
+.resume-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.resume-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-title);
+}
+
+.resume-mode-tag {
+    flex-shrink: 0;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: var(--text-main);
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-sub);
+    border-radius: 999px;
+}
+
+.resume-meta {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    word-break: keep-all;
+}
+
+.resume-progress {
+    height: 6px;
+    margin-top: 8px;
+    border-radius: 999px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.resume-progress-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary), #10b981);
+}
+
+.resume-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.resume-go-btn {
+    padding: 11px 13px;
+    font-size: 13px;
+    font-weight: 800;
+    font-family: inherit;
+    white-space: nowrap;
+    color: var(--header-text);
+    background-color: var(--bg-header);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.resume-go-btn:active {
+    transform: scale(0.96);
+}
+
+.resume-discard-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-muted);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-sub);
+    border-radius: 50%;
+    cursor: pointer;
 }

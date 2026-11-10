@@ -135,7 +135,7 @@ app.post('/api/quiz/new', (req, res) => {
             // 이어풀기: 저장해 둔 문항 id 순서 그대로 세션을 복원한다 (회차 풀이)
             const byId = new Map(questions.map(q => [q.id, q]));
             selectedQuestions = [...new Set(resumeIds)].map(id => byId.get(id)).filter(Boolean);
-            label = `${year} 기출 풀이`;
+            label = (year === 'cbt' || year === 'all') ? (isWritten ? "필기 실전 모의고사 (100제)" : "실기 무작위 30문항") : `${year} 기출 풀이`;
             examLike = true;
         } else if (bookmarkIdList.length > 0) {
             selectedQuestions = questions.filter(q => bookmarkIdList.includes(q.id));
