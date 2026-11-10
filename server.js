@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 const net2Router = require('./routes/net2.routes');
+const { shuffle, dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical } = require('./lib/quiz-utils');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -111,12 +112,12 @@ app.get('/api/quiz/rounds', (req, res) => {
 // 2. 문제 출제 API
 app.post('/api/quiz/new', (req, res) => {
     try {
-        const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId } = req.body;
+        const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId, resumeIds } = req.body;
         const isWritten = (examType === 'written');
-        const dataPath = isWritten 
-            ? path.join(__dirname, 'data', 'written.json') 
+        const dataPath = isWritten
+            ? path.join(__dirname, 'data', 'written.json')
             : path.join(__dirname, 'data', 'practical.json');
-        
+
         if (!fs.existsSync(dataPath)) {
             return res.status(404).json({ error: '문제 데이터 파일을 찾을 수 없습니다.' });
         }
@@ -124,12 +125,20 @@ app.post('/api/quiz/new', (req, res) => {
         const questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         let selectedQuestions = [];
         let label = isWritten ? "필기 모의고사" : "실기 모의고사";
+        let examLike = false; // 실전 모의고사(랜덤/회차) 여부: 과락 판정 대상
+        const bookmarkIdList = normalizeBookmarkIds(bookmarkIds);
 
         if (targetQuestionId) {
             selectedQuestions = questions.filter(q => q.id === parseInt(targetQuestionId, 10));
             label = "단일 문항 학습";
-        } else if (bookmarkIds && bookmarkIds.length > 0) {
-            selectedQuestions = questions.filter(q => bookmarkIds.includes(q.id));
+        } else if (isRoundResume(year, resumeIds)) {
+            // 이어풀기: 저장해 둔 문항 id 순서 그대로 세션을 복원한다 (회차 풀이)
+            const byId = new Map(questions.map(q => [q.id, q]));
+            selectedQuestions = [...new Set(resumeIds)].map(id => byId.get(id)).filter(Boolean);
+            label = `${year} 기출 풀이`;
+            examLike = true;
+        } else if (bookmarkIdList.length > 0) {
+            selectedQuestions = questions.filter(q => bookmarkIdList.includes(q.id));
             label = "즐겨찾기 모의고사";
         } else if (year === 'sequential') {
             selectedQuestions = questions;
@@ -139,9 +148,10 @@ app.post('/api/quiz/new', (req, res) => {
             label = `${subject} 과목별 풀이`;
         } else if (year === 'cbt' || year === 'all') {
             const count = isWritten ? 100 : 30;
-            const shuffled = [...questions].sort(() => 0.5 - Math.random());
-            selectedQuestions = shuffled.slice(0, count);
+            // 회차 간 재출제된 동일 문항(문제+보기 동일)이 한 세션에 중복 출제되지 않도록 제거
+            selectedQuestions = dedupeQuestions(shuffle(questions)).slice(0, count);
             label = isWritten ? "필기 실전 모의고사 (100제)" : "실기 무작위 30문항";
+            examLike = true;
         } else {
             // 선택된 연도 또는 회차 매칭 (공백 무시)
             const cleanTarget = String(year || '').replace(/\s+/g, '').replace('년도', '년');
@@ -150,6 +160,7 @@ app.post('/api/quiz/new', (req, res) => {
                 return cleanSource.includes(cleanTarget);
             });
             label = `${year} 기출 풀이`;
+            examLike = true;
         }
 
         if (selectedQuestions.length === 0) {
@@ -158,8 +169,10 @@ app.post('/api/quiz/new', (req, res) => {
 
         const sessionId = "SESSION_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
 
+        // 실기 데이터에는 type 필드가 없다: 클라이언트(즐겨찾기 필터, 리뷰 배지)가 쓰므로 응답에서 보강
+        const questionType = isWritten ? 'written' : 'practical';
         const clientQuestions = selectedQuestions.map(q => {
-            const copy = { ...q };
+            const copy = { ...q, type: q.type || questionType };
             delete copy.answer;
             delete copy.desc;
             return copy;
@@ -168,6 +181,7 @@ app.post('/api/quiz/new', (req, res) => {
         sessionStore.set(sessionId, {
             questions: selectedQuestions,
             quizLabel: label,
+            examLike: examLike,
             createdAt: Date.now()
         });
 
@@ -242,26 +256,17 @@ app.post('/api/quiz/submit', (req, res) => {
                 isRight = (userAns === realAns && userAns !== "");
                 if (isRight) earnedScoreSum += 1;
             } else {
-                const userParts = userAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-                const realParts = realAns.split(/[,/]/).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-                let matchedCount = 0;
-
-                realParts.forEach(rp => {
-                    if (userParts.includes(rp)) matchedCount++;
-                });
-
-                if (realParts.length > 0 && matchedCount === realParts.length) {
-                    isRight = true;
-                    earnedScore = 5;
-                } else if (matchedCount > 0 && realParts.length > 1) {
-                    earnedScore = Math.floor((matchedCount / realParts.length) * 5 * 10) / 10;
-                }
+                // 실기 채점: 복수 정답 부분점수, '|' 대체 표기 지원 (lib/quiz-utils.js)
+                const result = scorePractical(userAns, realAns, q.inputCount);
+                isRight = result.isRight;
+                earnedScore = result.earned;
                 earnedScoreSum += earnedScore;
             }
 
             return {
                 id: q.id,
-                type: q.type,
+                type: q.type || (isWritten ? 'written' : 'practical'),
+                subject: q.subject || null,
                 source: q.source,
                 text: q.text,
                 view: q.view || null,
@@ -286,6 +291,26 @@ app.post('/api/quiz/submit', (req, res) => {
             finalScore = totalMaxScore > 0 ? Math.round((earnedScoreSum / totalMaxScore) * 100 * 10) / 10 : 0;
         }
 
+        // 과락: 정처기 필기 실전 모의고사(랜덤·회차)에서 한 과목이라도 정답률 40% 미만이면 불합격
+        let gwarakApplied = false;
+        if (isWritten && session.examLike) {
+            const bySubject = new Map();
+            reviewData.forEach(r => {
+                if (!r.subject) return;
+                const s = bySubject.get(r.subject) || { total: 0, correct: 0 };
+                s.total++;
+                if (r.isRight) s.correct++;
+                bySubject.set(r.subject, s);
+            });
+            if (bySubject.size >= 2) {
+                gwarakApplied = true;
+                bySubject.forEach((s, name) => {
+                    if ((s.correct / s.total) * 100 < 40) gwarakSubjects.push(name);
+                });
+                isGwarak = gwarakSubjects.length > 0;
+            }
+        }
+
         const isPassed = (finalScore >= 60 && !isGwarak);
 
         res.json({
@@ -293,6 +318,7 @@ app.post('/api/quiz/submit', (req, res) => {
             total: totalQuestions,
             isPassed: isPassed,
             isGwarak: isGwarak,
+            gwarakApplied: gwarakApplied,
             gwarakSubjects: gwarakSubjects,
             reviewData: reviewData,
             quizLabel: session.quizLabel
@@ -346,7 +372,9 @@ app.get('/api/quiz/search', (req, res) => {
             }
         });
 
-        res.json(filtered);
+        // 실기 데이터에는 type 필드가 없으므로 보강 (검색 결과에서 즐겨찾기할 때 필요)
+        const questionType = isWritten ? 'written' : 'practical';
+        res.json(filtered.map(q => (q.type ? q : { ...q, type: questionType })));
     } catch (e) {
         console.error("검색 오류:", e);
         res.status(500).json({ error: "검색 중 오류가 발생했습니다." });
@@ -387,11 +415,17 @@ app.post('/api/log', (req, res) => {
 });
 
 // 8. 관리자 통계 조회 API
-const ADMIN_PASSWORD = "admin1234";
+// 비밀번호는 코드에 두지 않고 환경변수 ADMIN_PASSWORD로 받는다. 미설정이면 관리자 API는 비활성화된다.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+
+function isAdminAuthorized(req) {
+    if (!ADMIN_PASSWORD) return false;
+    const auth = req.headers['x-admin-key'] || req.query.key;
+    return auth === ADMIN_PASSWORD;
+}
 
 app.get('/api/admin/stats', (req, res) => {
-    const auth = req.headers['x-admin-key'] || req.query.key;
-    if (auth !== ADMIN_PASSWORD) {
+    if (!isAdminAuthorized(req)) {
         return res.status(401).json({ error: "관리자 인증 실패" });
     }
 
@@ -452,8 +486,7 @@ app.get('/api/admin/stats', (req, res) => {
 
 // 9. 개별 사용자 상세 타임라인 API
 app.get('/api/admin/user-detail', (req, res) => {
-    const auth = req.headers['x-admin-key'] || req.query.key;
-    if (auth !== ADMIN_PASSWORD) {
+    if (!isAdminAuthorized(req)) {
         return res.status(401).json({ error: "관리자 인증 실패" });
     }
 
