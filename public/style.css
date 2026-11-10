@@ -2105,3 +2105,10 @@ body {
     border-radius: 50%;
     cursor: pointer;
 }
+
+/* 정답 확인: 응답을 기다리는 동안 표시 */
+.feedback-loading {
+    font-size: 13.5px;
+    font-weight: bold;
+    color: var(--text-muted);
+}

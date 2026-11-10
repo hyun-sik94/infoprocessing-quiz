@@ -1997,6 +1997,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         activeSessionType = currentAppMode;
         activeQuizLabel = data.quizLabel || "기출 문제풀이";
         activeTimerEnabled = !['sequential', 'subject', 'bookmark', 'target'].includes(selectedYear);
+        Object.keys(answerRequests).forEach(k => delete answerRequests[k]);
         sessionQuizData = data.questions;
 
         logUserAction("START_EXAM", { mode: currentAppMode, year: selectedYear, subject: customSubject || "전체" });
@@ -2339,11 +2340,49 @@ function renderSingleQuestion() {
     // 이전에 정답 확인했더라도, 사용자가 숨긴 상태면 자동 표시하지 않음
     if (revealedAnswers[q.id] && !feedbackHiddenByUser[q.id]) showAnswerBoxInline(q, revealedAnswers[q.id]);
     focusInitialField(q);
+    prefetchAnswer(q);
+}
+
+// 정답 확인 응답을 미리 받아 두면(프리패치) 버튼을 눌렀을 때 서버 왕복 없이 바로 보여 줄 수 있다.
+// 키: `${sessionId}:${questionId}`. 정답은 사용자가 버튼을 누르기 전에는 화면에 나오지 않는다.
+const answerRequests = {};
+const answerLoading = {};
+
+function requestAnswer(sessionId, qId) {
+    const key = sessionId + ':' + qId;
+    if (answerRequests[key]) return answerRequests[key].promise;
+    const entry = { data: null };
+    entry.promise = fetch(getApiBase() + '/check-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId, questionId: qId })
+    })
+        .then(res => res.json())
+        .then(raw => parseSecurePayload(raw))
+        .then(data => {
+            if (data && !data.error) entry.data = data; else delete answerRequests[key];
+            return data;
+        })
+        .catch(err => { delete answerRequests[key]; throw err; });
+    answerRequests[key] = entry;
+    return entry.promise;
+}
+
+function prefetchAnswer(q) {
+    if (!q || !activeSessionId || revealedAnswers[q.id]) return;
+    requestAnswer(activeSessionId, q.id).catch(() => { /* 미리 받기 실패는 조용히 무시 (버튼을 누를 때 다시 시도) */ });
+}
+
+function showAnswerLoading() {
+    const panelArea = document.getElementById("instant-reveal-area");
+    if (panelArea) panelArea.innerHTML = '<div class="instant-feedback-panel"><div class="feedback-loading">정답을 불러오는 중...</div></div>';
+    const actionCard = document.getElementById("main-action-trigger-card");
+    if (actionCard) actionCard.innerText = "확인 중...";
 }
 
 async function toggleInstantFeedbackReveal(qId) {
     const q = sessionQuizData[currentQuizIndex];
-    
+
     if (revealedAnswers[qId]) {
         const panelArea = document.getElementById("instant-reveal-area");
         if (panelArea && panelArea.innerHTML !== "") {
@@ -2353,34 +2392,48 @@ async function toggleInstantFeedbackReveal(qId) {
             feedbackHiddenByUser[qId] = false;
             showAnswerBoxInline(q, revealedAnswers[qId]);
         }
-    } else {
-        const requestedSessionId = activeSessionId;
-        try {
-            const res = await fetch(getApiBase() + '/check-answer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: requestedSessionId, questionId: qId })
-            });
-            const rawData = await res.json();
-            const data = parseSecurePayload(rawData);
+        return;
+    }
 
-            if (data.error) {
-                alert(`정답 조회 실패: ${data.error}`);
-                return;
-            }
+    const requestedSessionId = activeSessionId;
+    const loadingKey = requestedSessionId + ':' + qId;
+    if (answerLoading[loadingKey]) return; // 응답을 기다리는 중의 중복 클릭 무시
 
-            // 응답을 기다리는 사이 세션이 끝났다면 아무것도 하지 않는다
-            if (activeSessionId !== requestedSessionId) return;
+    // 1) 미리 받아 둔 정답이 있으면 서버를 기다리지 않고 즉시 표시
+    const cached = answerRequests[loadingKey];
+    if (cached && cached.data) {
+        revealedAnswers[qId] = cached.data;
+        feedbackHiddenByUser[qId] = false;
+        showAnswerBoxInline(q, cached.data);
+        return;
+    }
 
-            revealedAnswers[qId] = data;
-            feedbackHiddenByUser[qId] = false;
-            // 응답이 도착했을 때 이미 다른 문항으로 이동했다면 그 화면에 그리지 않는다 (돌아오면 자동으로 열린다)
-            const shownQ = sessionQuizData[currentQuizIndex];
-            if (shownQ && shownQ.id === qId) showAnswerBoxInline(q, data);
-        } catch(e) {
-            console.error("정답 조회 오류:", e);
-            alert(`정답을 불러오는 중 오류가 발생했습니다.\n상세: ${e.message}`);
+    // 2) 아직 응답 전이면 "불러오는 중"을 바로 보여 주고 기다린다
+    answerLoading[loadingKey] = true;
+    showAnswerLoading();
+    const stillHere = () => { const shown = sessionQuizData[currentQuizIndex]; return activeSessionId === requestedSessionId && shown && shown.id === qId; };
+    try {
+        const data = await requestAnswer(requestedSessionId, qId);
+
+        if (data.error) {
+            if (stillHere()) hideAnswerBoxInline();
+            alert(`정답 조회 실패: ${data.error}`);
+            return;
         }
+
+        // 응답을 기다리는 사이 세션이 끝났다면 아무것도 하지 않는다
+        if (activeSessionId !== requestedSessionId) return;
+
+        revealedAnswers[qId] = data;
+        feedbackHiddenByUser[qId] = false;
+        // 응답이 도착했을 때 이미 다른 문항으로 이동했다면 그 화면에 그리지 않는다 (돌아오면 자동으로 열린다)
+        if (stillHere()) showAnswerBoxInline(q, data);
+    } catch(e) {
+        console.error("정답 조회 오류:", e);
+        if (stillHere()) hideAnswerBoxInline();
+        alert(`정답을 불러오는 중 오류가 발생했습니다.\n상세: ${e.message}`);
+    } finally {
+        delete answerLoading[loadingKey];
     }
 }
 
@@ -2413,10 +2466,6 @@ function showAnswerBoxInline(q, answerData) {
     }
 
     logUserAction("INSTANT_CHECK_ANSWER", { questionId: q.id, mode: q.type });
-
-    setTimeout(() => {
-        if (actionCard) actionCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
 }
 
 function hideAnswerBoxInline() {
