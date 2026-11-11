@@ -89,6 +89,8 @@ html,
 body {
     margin: 0;
     padding: 0;
+    /* flex 컨테이너의 자식은 폭을 지정하지 않으면 내용물 폭만큼만 줄어든다: 문제·해설 내용에 따라 앱 폭이 달라지는 문제 방지 */
+    width: 100%;
     height: 100%;
     height: 100dvh;
     overflow: hidden;
