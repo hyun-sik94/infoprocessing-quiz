@@ -160,7 +160,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
         <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
         <a class="stat s-issues" href="#s24"><b>14</b><span>남은 문제</span></a>
         <div class="stat"><b>14</b><span>섹션</span></div>
-        <div class="stat wide"><b>2026-11-13 17:28</b><span>CLAUDE.md 마지막 수정</span></div>
+        <div class="stat wide"><b>2026-11-13 17:34</b><span>CLAUDE.md 마지막 수정</span></div>
       </div>
       <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
     </div>
@@ -175,7 +175,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <tr class="u"><td>배포</td><td><code>main</code>에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다</td></tr>
 <tr class="u"><td>문제 수</td><td>정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150</td></tr>
 <tr class="u"><td>사용자 기록</td><td>서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도)</td></tr>
-<tr class="u"><td>캐시 버전</td><td><code>public/index.html</code>의 <code>?v=YYYYMMDD_NN</code> (2026-11-13 기준 <code>20261111_01</code>)</td></tr>
+<tr class="u"><td>캐시 버전</td><td><code>public/index.html</code>의 <code>?v=YYYYMMDD_NN</code> (2026-11-13 기준 <code>20261113_01</code>)</td></tr>
 <tr class="u"><td>문서</td><td>이 파일을 고치면 <code>CLAUDE.html</code>이 자동으로 다시 만들어진다(맨 아래 &quot;문서 관리&quot;)</td></tr>
 </tbody></table></div>
 </div>
@@ -356,7 +356,8 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 <li class="u"><div class="li-main"><strong>정답 확인:</strong> 문제가 나오면 정답을 미리 받아 두고(<code>prefetchAnswer</code>) 버튼을 누르면 즉시 표시한다. 미리 받은 정답은 버튼을 누르기 전에는 화면에 나오지 않는다. 응답 전이면 &quot;정답을 불러오는 중...&quot;을 보이고, 응답이 늦게 와도 이동한 다른 문항에는 그리지 않는다. <strong>자동 스크롤은 하지 않는다.</strong> (해설은 버튼 위쪽에 나타나서 모바일에서는 버튼이 아래로 밀린다.)</div></li>
 <li class="u"><div class="li-main"><strong>제보하기:</strong> 팝업(<code>openFeedbackModal</code>)에서 분류(오류 제보·기능 수정·기능 제안·기타)를 고르고 내용을 쓴다. 메시지 앞에 <code>[분류]</code>, 뒤에 자격증·모드(·현재 문항)를 붙여 <code>/api/feedback</code>으로 보낸다. <strong>DB에는 분류 컬럼이 없다.</strong></div></li></ul>
 <h3 id="s20">My 탭 (즐겨찾기)</h3>
-<ul><li class="u"><div class="li-main">문제, 지문(<code>view</code>), 필기는 보기 4개(정답 보기 강조), 정답, 해설을 보여 준다(<code>renderMyBookmarksTab</code>).</div></li>
+<ul><li class="u"><div class="li-main">실기 My와 같은 간단한 모양이다: 문제, 지문(<code>view</code>), <code>[보기]</code> 박스, &quot;정답 용어:&quot; 한 줄, 해설 한 문단(<code>renderMyBookmarksTab</code>).</div></li>
+<li class="u"><div class="li-main">필기는 보기 4개를 실기 <code>[보기]</code> 박스(<code>view-bogi-container</code>) 안에 줄 목록으로 넣고 정답 보기를 초록색으로 표시한다. 해설은 <code>briefExplanation</code>이 요약 문단만 남긴다(&quot;정답: N.&quot; 머리말과 <code>[오답 풀이]</code>·<code>[보충 개념]</code> 이후 생략). 자세한 해설은 풀이 화면과 이력에서 본다.</div></li>
 <li class="u"><div class="li-main"><strong>정답 보완:</strong> 풀이 화면에서 ★한 문항은 저장본에 정답·해설이 없다. My 탭을 열 때 그런 문항만 모아 <code>/new</code>(<code>bookmark</code>) + 빈 답안 <code>/submit</code>으로 정답·해설을 받아 <strong>화면에만</strong> 채운다(<code>fillMissingBookmarkAnswers</code>, 메모리 캐시 <code>bookmarkAnswerCache</code>). 저장된 즐겨찾기는 바꾸지 않고, 이력도 만들지 않는다.</div></li>
 <li class="u"><div class="li-main">id는 같은데 <code>text</code>가 다르면(데이터 개정) 다른 문제의 정답을 보여 주지 않고 &quot;정답 정보를 불러오지 못했습니다.&quot;를 표시한다.</div></li></ul>
 <h3 id="s21">분석 탭</h3>
