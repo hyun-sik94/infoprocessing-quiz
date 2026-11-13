@@ -2200,47 +2200,41 @@ body {
     color: var(--text-muted);
 }
 
-/* My 탭: 필기 즐겨찾기의 보기 목록 */
-.my-choice-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 8px 0;
-}
-
-.my-choice-item {
+/* My 탭: 필기 즐겨찾기의 보기 목록 (실기 [보기] 박스와 같은 틀) */
+.my-choice-line {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
-    line-height: 1.5;
+    padding: 3px 0;
+    font-size: 13.5px;
+    line-height: 1.55;
     color: var(--text-main);
-    background-color: var(--bg-sub-box);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
 }
 
-.my-choice-item.correct {
-    border-color: #10b981;
-    background-color: rgba(16, 185, 129, 0.12);
+.my-choice-line.correct {
+    color: #059669;
     font-weight: bold;
+}
+
+[data-theme="dark"] .my-choice-line.correct {
+    color: #34d399;
 }
 
 .my-choice-num {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    line-height: 22px;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    line-height: 20px;
     text-align: center;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: bold;
     color: var(--text-title);
-    background-color: var(--border-sub);
+    background-color: var(--border-color);
     border-radius: 50%;
 }
 
-.my-choice-item.correct .my-choice-num {
+.my-choice-line.correct .my-choice-num {
     color: #ffffff;
     background-color: #059669;
 }

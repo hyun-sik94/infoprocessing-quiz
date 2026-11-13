@@ -1564,6 +1564,20 @@ async function fillMissingBookmarkAnswers(bookmarks) {
     if (globalTabState === "my" && !activeSessionId) renderMyBookmarksTab(true);
 }
 
+// My 탭 필기 해설: 실기처럼 한 문단만 보여 준다. "정답: N." 머리말과 [오답 풀이]·[보충 개념] 이후는 뺀다.
+function briefExplanation(desc) {
+    if (!desc) return "";
+    const text = String(desc).replace(/\[cite:\s*[\d,\s]+\]/gi, "").replace(/\r\n/g, "\n").trim();
+    const lines = text.split("\n");
+    const head = [];
+    for (const line of lines) {
+        if (/^\s*\[[^\]]+\]\s*$/.test(line)) break; // 섹션 머리글([오답 풀이] 등)부터는 생략
+        head.push(line);
+    }
+    const summary = head.join(" ").replace(/^\s*정답\s*[:：]\s*\d+\s*번?\s*[.)]?\s*/, "").replace(/\s+/g, " ").trim();
+    return summary || text;
+}
+
 function renderMyBookmarksTab(keepScroll) {
     const isWritten = (currentAppMode === 'written');
     document.getElementById("header-center-title").innerText = isWritten ? "필기 즐겨찾기" : "실기 즐겨찾기";
@@ -1619,11 +1633,9 @@ function renderMyBookmarksTab(keepScroll) {
             if (b.choices[ansIdx]) {
                 answerDisplay = `${escapeHtml(info.answer)}번. ${escapeHtml(b.choices[ansIdx])}`;
             }
-            choicesHtml = `<div class="my-choice-list">${b.choices.map((c, i) => `
-                    <div class="my-choice-item${i === ansIdx ? ' correct' : ''}">
-                        <span class="my-choice-num">${i + 1}</span>
-                        <span class="my-choice-text">${escapeHtml(c)}</span>
-                    </div>`).join("")}
+            choicesHtml = `<div class="view-bogi-container my-choice-box">
+                    <div class="view-bogi-title">📋 [보기]</div>
+                    ${b.choices.map((c, i) => `<div class="my-choice-line${i === ansIdx ? ' correct' : ''}"><span class="my-choice-num">${i + 1}</span><span class="my-choice-text">${escapeHtml(c)}</span></div>`).join("")}
                 </div>`;
         }
         let answerLineHtml;
@@ -1644,7 +1656,7 @@ function renderMyBookmarksTab(keepScroll) {
                 ${b.view ? `<div class="view-content-wrapper">${formatViewHtml(b.view)}</div>` : ''}
                 ${choicesHtml}
                 ${answerLineHtml}
-                ${formatExplanationHtml(info.desc)}
+                ${formatExplanationHtml(b.type === 'written' ? briefExplanation(info.desc) : info.desc)}
             </div>
         `;
     });
