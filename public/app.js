@@ -5,6 +5,7 @@ let activeSessionId = null;
 let activeSessionYear = null;
 let activeSessionType = null;
 let activeQuizLabel = "";
+let activeLabelOverride = ""; // 오답 노트처럼 서버 라벨 대신 이력에 남길 제목
 let revealedAnswers = {};
 let feedbackHiddenByUser = {};
 let globalTabState = "all";
@@ -221,6 +222,7 @@ function logUserAction(action, detail = {}) {
             action: action,
             detail: detail
         });
+        
 
         if (navigator.sendBeacon) {
             const blob = new Blob([payload], { type: 'application/json' });
@@ -979,6 +981,89 @@ function startSingleQuestionQuiz(qId) {
     return triggerNewQuizSession('target', null, null, qId);
 }
 
+// ───────── 오답 노트: 이력에서 "가장 최근에 푼 결과가 오답"인 문제 모으기 (이력은 읽기만 한다) ─────────
+function wrongNoteKey(q) {
+    const choices = Array.isArray(q.choices) ? [...q.choices].map(c => String(c).trim()).sort().join("\u0001") : "";
+    return String(q.text).trim() + "\u0002" + String(q.view || "").trim() + "\u0002" + choices;
+}
+
+function buildWrongNoteData() {
+    const logs = getHistoryLogs()
+        .filter(log => log && log.type === currentAppMode)
+        .sort((a, b) => (a.id || 0) - (b.id || 0));
+    const byKey = new Map();
+    logs.forEach(log => {
+        const qs = log.questions || log.wrongs || [];
+        qs.forEach(q => {
+            if (!q || q.id === undefined || q.id === null || !q.text) return;
+            const key = wrongNoteKey(q);
+            let entry = byKey.get(key);
+            if (!entry) {
+                entry = { wrong: false, last: null, bySource: new Map() };
+                byKey.set(key, entry);
+            }
+            // 오래된 순으로 훑으므로 마지막에 덮어쓴 값이 가장 최근 결과다 (isRight가 없는 옛 형식은 오답으로 본다)
+            entry.wrong = (q.isRight === undefined) ? true : !q.isRight;
+            entry.last = q;
+            entry.bySource.set(q.source || "기타", q);
+        });
+    });
+
+    const all = [];
+    const groups = new Map();
+    byKey.forEach(entry => {
+        if (!entry.wrong) return;
+        all.push(entry.last);
+        entry.bySource.forEach((q, source) => {
+            if (!groups.has(source)) groups.set(source, []);
+            groups.get(source).push(q);
+        });
+    });
+    const sources = [...groups.keys()].sort((a, b) => b.localeCompare(a, 'ko', { numeric: true }));
+    return { all, groups, sources };
+}
+
+function buildWrongNoteCardHtml() {
+    const note = buildWrongNoteData();
+    const head = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-weight:bold; color:var(--text-title); font-size:15.5px;">❌ 오답 노트</span>
+            <span style="font-size:12.5px; font-weight:bold; color:var(--text-muted);">총 ${note.all.length}문항</span>
+        </div>`;
+    if (note.all.length === 0) {
+        return `<div class="wrong-note-card">${head}
+            <div class="wrong-note-desc">현재 틀린 문제가 없습니다. 틀린 문제는 가장 최근에 푼 결과가 오답일 때 여기에 모입니다.</div>
+        </div>`;
+    }
+    const options = [`<option value="">모든 문제 (${note.all.length}문항)</option>`]
+        .concat(note.sources.map(src => `<option value="${escapeHtml(src)}">${escapeHtml(src)} (${note.groups.get(src).length}문항)</option>`))
+        .join("");
+    return `<div class="wrong-note-card">${head}
+        <div class="wrong-note-desc">가장 최근에 푼 결과가 오답인 문제만 모았습니다. 다시 풀어서 맞히면 목록에서 빠집니다.</div>
+        <div class="wrong-note-row">
+            <select id="wrong-note-select" class="wrong-note-select" aria-label="오답 노트 범위">${options}</select>
+            <button type="button" class="wrong-note-btn" onclick="startWrongNoteQuiz()">다시 풀기</button>
+        </div>
+    </div>`;
+}
+
+function startWrongNoteQuiz() {
+    const sel = document.getElementById("wrong-note-select");
+    const scope = sel ? sel.value : "";
+    const note = buildWrongNoteData();
+    const items = scope ? (note.groups.get(scope) || []) : note.all;
+    if (items.length === 0) {
+        alert("다시 풀 틀린 문제가 없습니다.");
+        return;
+    }
+    const expected = {};
+    items.forEach(q => { expected[q.id] = String(q.text).trim(); });
+    const ids = Object.keys(expected).map(Number);
+    const label = scope ? `오답 노트 다시 풀기 (${scope})` : "오답 노트 다시 풀기 (전체)";
+    // 즐겨찾기 모의고사와 같은 세션(타이머·과락 없음)으로 풀고, 이력에는 "오답 노트 다시 풀기"로 남긴다
+    return triggerNewQuizSession('bookmark', ids, null, null, null, { label, expected });
+}
+
 // 성과 분석 화면 (정상 평균/합격률 산출 로직 적용)
 function renderAnalysisTab() {
     const isWritten = (currentAppMode === 'written');
@@ -1082,6 +1167,7 @@ function renderAnalysisTab() {
 
     let html = `
         <div style="padding-top:6px;">
+            ${buildWrongNoteCardHtml()}
             <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:15px; margin-bottom:16px; text-align:center;">
                 <div style="font-weight:bold; color:var(--text-title); font-size:15.5px; margin-bottom:12px;">🏆 전체 누적 응시 리포트</div>
                 <div style="display:flex; justify-content:space-around; background:var(--bg-sub-box); padding:12px; border-radius:8px; border:1px solid var(--border-color);">
@@ -1416,7 +1502,69 @@ function toggleBookmarkStatusFromSearch(index) {
     }
 }
 
-function renderMyBookmarksTab() {
+// ───────── My 탭: 정답·해설이 없는 즐겨찾기 보완 ─────────
+// 풀이 화면에서 ★한 문항은 서버가 정답·해설을 빼고 보낸 상태로 저장된다.
+// 저장본은 바꾸지 않고, My 탭을 열 때 서버에서 받아 화면에만 채운다.
+const bookmarkAnswerCache = {}; // "<자격증>|<모드>|<id>" → { text, answer, desc } 또는 null(조회 실패)
+let bookmarkAnswerLoading = false;
+
+function hasAnswerValue(v) {
+    return v !== undefined && v !== null && String(v).trim() !== "";
+}
+
+function resolveBookmarkAnswer(b) {
+    if (hasAnswerValue(b.answer)) return { answer: b.answer, desc: b.desc, state: 'ok' };
+    if (b.id === undefined || b.id === null) return { answer: "", desc: "", state: 'missing' };
+    const key = currentCertType + "|" + currentAppMode + "|" + b.id;
+    if (!(key in bookmarkAnswerCache)) return { answer: "", desc: "", state: 'loading' };
+    const cached = bookmarkAnswerCache[key];
+    // id가 같아도 문제 내용이 다르면(데이터 개정으로 id가 바뀐 경우) 다른 문제의 정답을 보여 주지 않는다
+    if (!cached || cached.text !== String(b.text).trim()) return { answer: "", desc: "", state: 'missing' };
+    return { answer: cached.answer, desc: cached.desc, state: 'ok' };
+}
+
+async function fillMissingBookmarkAnswers(bookmarks) {
+    if (bookmarkAnswerLoading) return;
+    const cert = currentCertType;
+    const mode = currentAppMode;
+    const apiBase = getApiBase();
+    const keyOf = id => cert + "|" + mode + "|" + id;
+    const ids = [...new Set(bookmarks
+        .filter(b => !hasAnswerValue(b.answer) && b.id !== undefined && b.id !== null && !(keyOf(b.id) in bookmarkAnswerCache))
+        .map(b => b.id))];
+    if (ids.length === 0) return;
+
+    bookmarkAnswerLoading = true;
+    try {
+        // 별도 API 없이 기존 흐름을 쓴다: 즐겨찾기 세션을 만들고 빈 답안으로 채점해 정답·해설을 받는다 (이력에는 저장하지 않는다)
+        const newRes = await fetch(apiBase + '/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year: 'bookmark', bookmarkIds: ids, examType: mode })
+        });
+        const created = parseSecurePayload(await newRes.json());
+        if (created && created.sessionId) {
+            const subRes = await fetch(apiBase + '/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: created.sessionId, userAnswers: {} })
+            });
+            const result = parseSecurePayload(await subRes.json());
+            ((result && result.reviewData) || []).forEach(r => {
+                bookmarkAnswerCache[keyOf(r.id)] = { text: String(r.text).trim(), answer: r.realAnswer, desc: r.desc };
+            });
+        }
+    } catch (e) {
+        console.error("즐겨찾기 정답 조회 오류:", e);
+    }
+    // 받지 못한 문항은 실패로 기록해 같은 요청을 반복하지 않는다
+    ids.forEach(id => { if (!(keyOf(id) in bookmarkAnswerCache)) bookmarkAnswerCache[keyOf(id)] = null; });
+    bookmarkAnswerLoading = false;
+
+    if (globalTabState === "my" && !activeSessionId) renderMyBookmarksTab(true);
+}
+
+function renderMyBookmarksTab(keepScroll) {
     const isWritten = (currentAppMode === 'written');
     document.getElementById("header-center-title").innerText = isWritten ? "필기 즐겨찾기" : "실기 즐겨찾기";
     const container = document.getElementById("view-renderer");
@@ -1462,12 +1610,29 @@ function renderMyBookmarksTab() {
         const modeText = b.type === 'written' ? '[필기]' : '[실기]';
         let cleanDesc = b.desc ? b.desc.replace(/\[cite:\s*[\d,\s]+\]/gi, "").trim() : "";
 
-        let answerDisplay = escapeHtml(b.answer);
+        // 저장본에 정답·해설이 없으면(풀이 화면에서 ★한 문항) 서버에서 받은 값으로 화면만 보완한다
+        const info = resolveBookmarkAnswer(b);
+        let answerDisplay = escapeHtml(info.answer);
+        let choicesHtml = "";
         if (b.type === 'written' && b.choices && Array.isArray(b.choices)) {
-            const ansIdx = parseInt(b.answer, 10) - 1;
+            const ansIdx = parseInt(info.answer, 10) - 1;
             if (b.choices[ansIdx]) {
-                answerDisplay = `${b.answer}번. ${escapeHtml(b.choices[ansIdx])}`;
+                answerDisplay = `${escapeHtml(info.answer)}번. ${escapeHtml(b.choices[ansIdx])}`;
             }
+            choicesHtml = `<div class="my-choice-list">${b.choices.map((c, i) => `
+                    <div class="my-choice-item${i === ansIdx ? ' correct' : ''}">
+                        <span class="my-choice-num">${i + 1}</span>
+                        <span class="my-choice-text">${escapeHtml(c)}</span>
+                    </div>`).join("")}
+                </div>`;
+        }
+        let answerLineHtml;
+        if (info.state === 'ok') {
+            answerLineHtml = `<div style="font-size:13px; color:#10b981; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>`;
+        } else if (info.state === 'loading') {
+            answerLineHtml = `<div class="feedback-loading" style="margin-top:5px;">정답을 불러오는 중...</div>`;
+        } else {
+            answerLineHtml = `<div style="font-size:12.5px; color:var(--text-muted); margin-top:5px;">정답 정보를 불러오지 못했습니다.</div>`;
         }
 
         html += `
@@ -1477,13 +1642,16 @@ function renderMyBookmarksTab() {
                 <div class="question-title" style="font-size:13.5px; padding-right:25px; white-space: pre-wrap; line-height: 1.55; word-break: break-all;">${escapeHtml(b.text)}</div>
                 ${b.image ? `<div style="text-align:center; margin-bottom:10px;"><img src="${b.image}" class="question-img" alt="기출 이미지"></div>` : ''}
                 ${b.view ? `<div class="view-content-wrapper">${formatViewHtml(b.view)}</div>` : ''}
-                <div style="font-size:13px; color:#10b981; font-weight:bold; margin-top:5px;">정답 용어: ${answerDisplay}</div>
-                ${formatExplanationHtml(b.desc)}
+                ${choicesHtml}
+                ${answerLineHtml}
+                ${formatExplanationHtml(info.desc)}
             </div>
         `;
     });
+    const prevScrollTop = container.scrollTop;
     container.innerHTML = html;
-    container.scrollTop = 0;
+    container.scrollTop = keepScroll ? prevScrollTop : 0;
+    fillMissingBookmarkAnswers(bookmarks);
 }
 
 function removeBookmarkFromTab(index) {
@@ -1524,6 +1692,7 @@ function fetchHistoryLogs() {
         window.historyLogQuestions[s.id] = targetQuestions;
         const quizLabel = s.quizLabel || "기출 문제풀이";
         const displayTotal = s.total || targetQuestions.length || 0;
+        const wrongInLog = targetQuestions.filter(w => w.isRight === undefined ? true : !w.isRight).length;
 
         html += `
             <div class="log-box-card" style="position:relative;">
@@ -1536,10 +1705,20 @@ function fetchHistoryLogs() {
                 </div>
                 <div style="font-size:14.5px; font-weight:bold; margin:6px 0; color:var(--text-title);">최종 점수: ${s.score}점 (총 ${displayTotal}문항)</div>
                 <div style="font-size:12.5px; color:#ef4444; font-weight:bold; margin-bottom:8px;">틀린 문제 수: ${s.wrongCount}개</div>
-                <button class="nav-control-btn" style="padding:7px; font-size:12px; background-color:var(--primary); color:var(--on-primary);" onclick="toggleHistoryWrongList(${s.id})">
-                    상세 문항 확인하기
-                </button>
-                <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;">
+                <div style="display:flex; gap:8px;">
+                    <button class="nav-control-btn" style="padding:7px; font-size:12px; background-color:var(--primary); color:var(--on-primary);" onclick="toggleHistoryWrongList(${s.id})">
+                        상세 문항 확인하기
+                    </button>
+                    <button class="nav-control-btn history-wrong-only-btn" style="padding:7px; font-size:12px;" onclick="showHistoryWrongOnly(${s.id})" ${wrongInLog === 0 ? 'disabled' : ''}>
+                        ${wrongInLog === 0 ? '틀린 문제 없음' : `틀린 문제만 보기 (${wrongInLog})`}
+                    </button>
+                </div>
+                <div id="wrong-container-${s.id}" style="display:none; margin-top:5px;" data-filter="all">
+                    <div class="history-filter-bar">
+                        <button type="button" class="history-filter-chip active" data-filter="all" onclick="setHistoryFilter(${s.id}, 'all')">전체 ${targetQuestions.length}</button>
+                        <button type="button" class="history-filter-chip" data-filter="wrong" onclick="setHistoryFilter(${s.id}, 'wrong')">틀린 문제 ${wrongInLog}</button>
+                    </div>
+                    <div class="history-filter-empty" style="display:none;">이 기록에는 틀린 문제가 없습니다.</div>
                     ${targetQuestions.map((w, idx) => {
                         const isRight = w.isRight !== undefined ? w.isRight : false;
                         const isBookmarked = isQuestionBookmarked(w.text);
@@ -1557,7 +1736,7 @@ function fetchHistoryLogs() {
                         }
 
                         return `
-                            <div class="history-wrong-item" style="border-left: 4px solid ${isRight ? '#10b981' : '#ef4444'}; padding-left: 10px; margin-bottom: 10px; position: relative;">
+                            <div class="history-wrong-item" data-right="${isRight ? 1 : 0}" style="border-left: 4px solid ${isRight ? '#10b981' : '#ef4444'}; padding-left: 10px; margin-bottom: 10px; position: relative;">
                                 <span class="bookmark-toggle-btn" style="position: absolute; top: 0; right: 5px; cursor: pointer; font-size: 16px;" onclick="toggleBookmarkFromHistory(${s.id}, ${idx}, this)">${starChar}</span>
                                 <div style="font-weight:bold; color:${isRight ? '#10b981' : '#dc2626'}; margin-bottom:3px;">${modeText} ${escapeHtml(w.source)} [${isRight ? '정답' : '오답'}]</div>
                                 <div style="font-weight:bold; color:var(--text-title); margin-bottom:4px; white-space: pre-wrap; line-height: 1.5; word-break: break-all;">문제: ${escapeHtml(w.text)}</div>${w.image ? `<div style="text-align:center; margin-top:8px; margin-bottom:8px;"><img src="${w.image}" class="question-img" alt="기출 이미지"></div>` : ''}
@@ -1618,6 +1797,35 @@ function toggleHistoryWrongList(id) {
     if (area) {
         area.style.display = area.style.display === "none" ? "block" : "none";
     }
+}
+
+// 이력 상세 목록 필터: 'all'(전체) / 'wrong'(틀린 문제만). 화면에서만 숨길 뿐 저장된 이력은 바꾸지 않는다.
+function setHistoryFilter(id, filter) {
+    const area = document.getElementById("wrong-container-" + id);
+    if (!area) return;
+    area.dataset.filter = filter;
+    let shown = 0;
+    area.querySelectorAll(".history-wrong-item").forEach(el => {
+        const hide = filter === 'wrong' && el.dataset.right === '1';
+        el.style.display = hide ? 'none' : '';
+        if (!hide) shown++;
+    });
+    area.querySelectorAll(".history-filter-chip").forEach(chip => {
+        chip.classList.toggle("active", chip.dataset.filter === filter);
+    });
+    const empty = area.querySelector(".history-filter-empty");
+    if (empty) empty.style.display = shown === 0 ? "block" : "none";
+}
+
+function showHistoryWrongOnly(id) {
+    const area = document.getElementById("wrong-container-" + id);
+    if (!area) return;
+    if (area.style.display !== "none" && area.dataset.filter === 'wrong') {
+        area.style.display = "none"; // 이미 틀린 문제만 펼쳐 둔 상태면 접는다
+        return;
+    }
+    area.style.display = "block";
+    setHistoryFilter(id, 'wrong');
 }
 
 function startQuizTimer(isNewSession) {
@@ -1908,7 +2116,7 @@ window.jumpToQuestion = function(index) {
     renderSingleQuestion();
 };
 
-async function triggerNewQuizSession(customYear, customIds, customSubject, customTargetId, resumeMode) {
+async function triggerNewQuizSession(customYear, customIds, customSubject, customTargetId, resumeMode, opts) {
     let selectedYear = customYear;
     let bookmarkIds = customIds || [];
     
@@ -1973,6 +2181,22 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         const rawData = await res.json();
         const data = parseSecurePayload(rawData);
 
+        // 오답 노트: 이력에 저장된 id가 지금 문제 데이터에서도 같은 문제인지(text 일치) 확인한다.
+        // 데이터가 개정되어 id가 다른 문항을 가리키면 그 문항만 빼고 다시 세션을 만든다.
+        if (opts && opts.expected && data.questions) {
+            const returned = new Map(data.questions.map(q => [q.id, String(q.text).trim()]));
+            const validIds = bookmarkIds.filter(id => returned.get(id) === opts.expected[id]);
+            if (validIds.length !== bookmarkIds.length) {
+                const dropped = bookmarkIds.length - validIds.length;
+                if (validIds.length === 0) {
+                    alert("저장된 오답 문제를 현재 문제 데이터에서 찾지 못했습니다.");
+                    return;
+                }
+                alert(`${dropped}문항은 문제 데이터가 바뀌어 찾지 못해 제외하고 시작합니다.`);
+                return triggerNewQuizSession(customYear, validIds, customSubject, customTargetId, resumeMode, { label: opts.label });
+            }
+        }
+
         // 저장된 문항 구성이 현재 문제 데이터와 맞지 않으면(데이터가 바뀐 경우) 저장본을 버리고 처음부터 시작한다.
         // 서버가 문항 순서를 섞어 보내더라도(서버가 아직 이어풀기를 모르는 옛 버전) 저장된 순서대로 다시 정렬한다.
         if (roundResume) {
@@ -1996,6 +2220,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         activeSessionYear = selectedYear;
         activeSessionType = currentAppMode;
         activeQuizLabel = data.quizLabel || "기출 문제풀이";
+        activeLabelOverride = (opts && opts.label) || "";
         activeTimerEnabled = !['sequential', 'subject', 'bookmark', 'target'].includes(selectedYear);
         Object.keys(answerRequests).forEach(k => delete answerRequests[k]);
         sessionQuizData = data.questions;
@@ -2582,7 +2807,7 @@ function saveHistoryToLocal(result) {
         id: Date.now(),
         date: new Date().toLocaleString('ko-KR'),
         type: activeSessionType,
-        quizLabel: result.quizLabel || activeQuizLabel || "기출 문제풀이",
+        quizLabel: activeLabelOverride || result.quizLabel || activeQuizLabel || "기출 문제풀이",
         score: result.score,
         isPassed: !!result.isPassed,
         total: calculatedTotal,

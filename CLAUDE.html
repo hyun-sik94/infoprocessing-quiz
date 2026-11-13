@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<!-- 자동 생성 파일: CLAUDE.md에서 scripts/build-claude-html.js로 만든다. 직접 수정하지 않는다. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CLAUDE.md · 프로젝트 안내</title>
+<style>
+:root {
+  --bg: #f4f6f9; --card: #ffffff; --ink: #1c2530; --muted: #5d6b7c; --line: #dfe5ec; --soft: #f1f4f8;
+  --accent: #1d5fd1; --accent-soft: #e6eefc; --code-bg: #eef1f6; --code-ink: #23344d;
+  --danger: #b42318; --danger-soft: #fdeceb; --ok: #0a7a4b; --warn-soft: #fff6e0; --warn: #8a5a00;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 14px rgba(16, 24, 40, .05);
+}
+[data-theme="dark"] {
+  --bg: #10151c; --card: #18202a; --ink: #e6ebf2; --muted: #9aa8b9; --line: #2a3644; --soft: #1e2833;
+  --accent: #7db0ff; --accent-soft: #1c2d47; --code-bg: #222d3a; --code-ink: #d5e2f5;
+  --danger: #ff9b8f; --danger-soft: #3a1f1d; --ok: #5fd3a0; --warn-soft: #33290f; --warn: #f2c35b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; word-break: keep-all; overflow-wrap: anywhere; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font: 0.88em/1.5 "D2Coding", Consolas, "Cascadia Mono", monospace; background: var(--code-bg); color: var(--code-ink); padding: 1px 5px; border-radius: 4px; word-break: normal; overflow-wrap: anywhere; }
+pre { margin: 10px 0; padding: 12px 14px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 13px; white-space: pre; word-break: normal; }
+strong { font-weight: 700; }
+
+.top { position: sticky; top: 0; z-index: 10; background: var(--card); border-bottom: 1px solid var(--line); }
+.top-inner { max-width: 1240px; margin: 0 auto; padding: 10px 20px; display: flex; gap: 10px; align-items: center; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; flex-shrink: 0; }
+.brand-mark { background: var(--accent); color: var(--card); font-size: 11px; font-weight: 800; padding: 3px 6px; border-radius: 5px; letter-spacing: .04em; }
+.search { flex: 1 1 0; min-width: 0; max-width: 460px; margin-left: auto; padding: 8px 12px; font: inherit; font-size: 16px; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; }
+.search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ghost { flex-shrink: 0; padding: 8px 12px; font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.ghost:hover { background: var(--soft); }
+
+.layout { max-width: 1240px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: start; }
+.toc { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; }
+.toc-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc > ul > li > a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-weight: 600; }
+.toc > ul > li > a.active { background: var(--accent-soft); color: var(--accent); }
+.toc ul ul { margin: 0 0 4px 8px; padding-left: 8px; border-left: 1px solid var(--line); }
+.toc ul ul a { display: block; padding: 2px 8px; color: var(--muted); font-size: 12.5px; }
+
+.hero { margin-bottom: 18px; }
+.hero h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -.01em; }
+.lead p { margin: 0; color: var(--muted); }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 8px; }
+.stat { display: flex; flex-direction: column; min-width: 104px; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); box-shadow: var(--shadow); }
+.stat:hover { text-decoration: none; border-color: var(--accent); }
+.stat b { font-size: 20px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+.stat.wide b { font-size: 15px; line-height: 1.75; }
+.s-rules b { color: var(--danger); }
+.s-issues b { color: var(--warn); }
+.note { margin: 0; font-size: 12.5px; color: var(--muted); }
+.empty { padding: 30px; text-align: center; color: var(--muted); }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.card h2 { margin: 0; font-size: 17px; }
+.sec-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; font: inherit; font-weight: 700; color: var(--ink); background: none; border: none; cursor: pointer; text-align: left; }
+.chev { color: var(--muted); transition: transform .15s; }
+.card.closed .chev { transform: rotate(-90deg); }
+.card.closed .sec-body { display: none; }
+.sec-body { padding: 2px 18px 16px; border-top: 1px solid var(--line); }
+.sec-body h3 { margin: 20px 0 8px; padding-left: 9px; font-size: 14.5px; border-left: 3px solid var(--accent); line-height: 1.4; }
+.sec-body p { margin: 10px 0; }
+.sec-body ul, .sec-body ol { margin: 8px 0; padding-left: 20px; }
+.sec-body li { margin: 5px 0; }
+.sec-body li > ul, .sec-body li > ol { margin: 4px 0; }
+.sec-body li li { color: var(--muted); font-size: 14px; }
+.sec-body li li code { font-size: .86em; }
+
+.table-wrap { margin: 10px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12.5px; color: var(--muted); background: var(--soft); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+td.mark { text-align: center; }
+td:first-child { font-weight: 600; }
+
+.k-rules { border-color: var(--danger); }
+.k-rules .sec-toggle { color: var(--danger); }
+.k-rules .sec-body > ol { list-style: none; padding: 0; counter-reset: rule; }
+.k-rules .sec-body > ol > li { counter-increment: rule; position: relative; margin: 10px 0; padding: 10px 12px 10px 46px; background: var(--danger-soft); border-radius: 8px; }
+.k-rules .sec-body > ol > li::before { content: counter(rule); position: absolute; left: 12px; top: 10px; width: 24px; height: 24px; line-height: 24px; text-align: center; font-size: 13px; font-weight: 800; color: var(--card); background: var(--danger); border-radius: 50%; }
+.k-rules .sec-body li li { color: var(--ink); }
+
+.k-glance td:first-child { white-space: nowrap; color: var(--muted); width: 1%; }
+.k-history td:first-child { white-space: nowrap; }
+.k-issues td:first-child { width: 1%; white-space: nowrap; }
+.k-issues td:last-child { color: var(--muted); font-size: 13px; min-width: 160px; }
+
+.badge { display: inline-block; padding: 2px 9px; font-size: 12px; font-weight: 700; border-radius: 999px; background: var(--soft); color: var(--ink); border: 1px solid var(--line); }
+.b-data { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.b-feat, .b-deploy { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.b-sec { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+
+.hide { display: none !important; }
+mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .toc { position: static; max-height: none; }
+  .toc ul ul { display: none; }
+  .toc > ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  .toc > ul > li > a { background: var(--soft); font-size: 12.5px; }
+  .brand-name, #toggle-all { display: none; }
+  .top-inner { padding: 10px 14px; }
+}
+@media print {
+  .top, .toc { display: none; }
+  .layout { display: block; padding: 0; }
+  .card { box-shadow: none; break-inside: avoid; }
+  .card.closed .sec-body { display: block; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><span class="brand-mark">MD</span><span class="brand-name">CLAUDE.md</span></div>
+    <input id="q" class="search" type="search" placeholder="검색 (예: 과락, 캐시, 즐겨찾기)" aria-label="문서 검색">
+    <button id="toggle-all" type="button" class="ghost">모두 접기</button>
+    <button id="theme" type="button" class="ghost" aria-label="밝게/어둡게 전환">◐</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="목차">
+    <div class="toc-title">목차</div>
+    <ul>
+<li><a href="#s1" data-target="s1">한눈에 보기</a></li>
+<li><a href="#s2" data-target="s2">최우선 규칙</a></li>
+<li><a href="#s3" data-target="s3">작업 방식</a><ul><li><a href="#s4">수정 후 확인 순서</a></li><li><a href="#s5">도구 사용 시 주의 (실제로 사고가 난 항목)</a></li></ul></li>
+<li><a href="#s6" data-target="s6">실행·배포</a></li>
+<li><a href="#s7" data-target="s7">구조</a><ul><li><a href="#s8">API</a></li></ul></li>
+<li><a href="#s9" data-target="s9">세션 종류별 동작</a></li>
+<li><a href="#s10" data-target="s10">데이터 규칙</a><ul><li><a href="#s11">공통</a></li><li><a href="#s12">정처기 필기 data/written.json</a></li><li><a href="#s13">정처기 실기 data/practical.json</a></li><li><a href="#s14">네트워크관리사 2급 필기 data/net2/written.json</a></li></ul></li>
+<li><a href="#s15" data-target="s15">채점 규칙</a></li>
+<li><a href="#s16" data-target="s16">프런트엔드 메모</a><ul><li><a href="#s17">브라우저 저장소 (localStorage)</a></li><li><a href="#s18">진행도와 이어풀기</a></li><li><a href="#s19">풀이 화면</a></li><li><a href="#s20">My 탭 (즐겨찾기)</a></li><li><a href="#s21">분석 탭</a></li><li><a href="#s22">이력 화면 (대시보드 아래)</a></li><li><a href="#s23">렌더링과 레이아웃</a></li></ul></li>
+<li><a href="#s24" data-target="s24">남은 문제·확인 필요</a></li>
+<li><a href="#s25" data-target="s25">보안·개인정보</a></li>
+<li><a href="#s26" data-target="s26">테스트</a></li>
+<li><a href="#s27" data-target="s27">수정 이력</a></li>
+<li><a href="#s28" data-target="s28">문서 관리</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <h1>CLAUDE.md</h1>
+      <div class="lead"><p>IT 자격증 스마트 CBT: 정보처리기사(필기·실기)와 네트워크관리사 2급(필기) 기출문제 풀이 웹앱.<br>Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐라 JS 단일 페이지가 풀이·채점 결과·즐겨찾기·분석을 보여준다.</p></div>
+      <div class="stats">
+        <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
+        <a class="stat s-issues" href="#s24"><b>14</b><span>남은 문제</span></a>
+        <div class="stat"><b>14</b><span>섹션</span></div>
+        <div class="stat wide"><b>2026-11-13 17:28</b><span>CLAUDE.md 마지막 수정</span></div>
+      </div>
+      <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
+    </div>
+    <p id="empty" class="empty" hidden>검색 결과가 없습니다.</p>
+
+<section class="card k-glance" id="s1" data-title="한눈에 보기">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">한눈에 보기<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<div class="table-wrap"><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr class="u"><td>스택</td><td>Node.js + Express, SQLite(<code>better-sqlite3</code>), 바닐라 JS 단일 페이지. 빌드 단계 없음</td></tr>
+<tr class="u"><td>실행</td><td><code>npm install</code> → <code>node server.js</code> → <code>http://localhost:3000</code></td></tr>
+<tr class="u"><td>배포</td><td><code>main</code>에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다</td></tr>
+<tr class="u"><td>문제 수</td><td>정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150</td></tr>
+<tr class="u"><td>사용자 기록</td><td>서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도)</td></tr>
+<tr class="u"><td>캐시 버전</td><td><code>public/index.html</code>의 <code>?v=YYYYMMDD_NN</code> (2026-11-13 기준 <code>20261111_01</code>)</td></tr>
+<tr class="u"><td>문서</td><td>이 파일을 고치면 <code>CLAUDE.html</code>이 자동으로 다시 만들어진다(맨 아래 &quot;문서 관리&quot;)</td></tr>
+</tbody></table></div>
+</div>
+</section>
+
+<section class="card k-rules" id="s2" data-title="최우선 규칙">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">최우선 규칙<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ol><li class="u"><div class="li-main"><strong>승인 없이 코드를 수정하지 않는다.</strong> 먼저 무엇을 왜 어떻게 바꿀지 제안하고, 사용자가 승인한 범위만 수정한다.</div><ul><li><div class="li-main">&quot;확인해줘&quot;, &quot;검토해줘&quot;, &quot;테스트해줘&quot;는 수정 승인이 아니다. 결과와 수정안만 보고한다.</div></li>
+<li><div class="li-main">승인받은 범위 밖의 리팩터링, 포맷 정리, 주석 정리, 이름 변경을 끼워 넣지 않는다.</div></li></ul></li>
+<li class="u"><div class="li-main"><strong>승인 없이 커밋·푸시·브랜치 작업을 하지 않는다.</strong> <code>git commit</code>, <code>git push</code>, <code>git reset</code>, <code>git checkout -- .</code>, <code>git stash</code>, 리베이스, 태그 생성 모두 해당한다. 사용자가 요청하면 커밋 메시지를 먼저 보여 준다.</div><ul><li><div class="li-main"><strong>push는 곧 운영 배포다.</strong> 서버가 재시작되어 풀이 중이던 사용자의 세션이 끊긴다.</div></li></ul></li>
+<li class="u"><div class="li-main"><strong>데이터 파일(<code>data/**/*.json</code>)은 코드보다 더 신중히 다룬다.</strong> 승인 없이 수정·재정렬·재포맷하지 않는다. 수정할 때는 바뀐 문항 id와 필드를 목록으로 보고한다.</div></li>
+<li class="u"><div class="li-main"><strong>파일 삭제, 패키지 설치·삭제, <code>feedback.db</code> 변경은 승인 후에만 한다.</strong></div></li>
+<li class="u"><div class="li-main"><strong>운영 서버나 실데이터에 쓰기 요청을 보내지 않는다.</strong> 테스트 중에도 <code>/api/feedback</code>(제보하기)은 전송하지 않는다.</div></li>
+<li class="u"><div class="li-main"><strong>사용자 브라우저에 저장된 기록을 바꾸거나 지우는 코드를 넣지 않는다.</strong> 즐겨찾기·이력·진행도는 읽기만 하고, 새 기능은 기존 기록 위에 덧붙이는 방식으로 만든다(2026-11-13 사용자 요청).</div></li>
+<li class="u"><div class="li-main">모르는 것은 추측하지 말고 확인하거나 질문한다. 실행하지 않은 검증을 했다고 말하지 않는다.</div></li>
+<li class="u"><div class="li-main">사용자와는 <strong>한국어</strong>로 대화한다.</div></li></ol>
+</div>
+</section>
+
+<section class="card k-normal" id="s3" data-title="작업 방식">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">작업 방식<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ul><li class="u"><div class="li-main">순서: 관련 파일 읽기 → 원인·영향 범위 설명 → 수정안 제시 → <strong>승인</strong> → 수정 → 검증 → 결과 보고.</div></li>
+<li class="u"><div class="li-main">수정 보고에는 바뀐 파일, 함수, 이유, 검증 방법, 남은 위험을 적는다.</div></li>
+<li class="u"><div class="li-main">한 번에 하나의 문제만 고친다. 여러 결함은 우선순위를 매겨 하나씩 승인받는다.</div></li>
+<li class="u"><div class="li-main">프런트 파일(<code>app.js</code>, <code>style.css</code>)을 수정하면 <code>index.html</code>의 캐시 버전을 같이 올릴지 사용자에게 묻는다. 안 올리면 브라우저가 옛 파일을 쓴다.</div></li>
+<li class="u"><div class="li-main">&quot;화면이 그대로다&quot;, &quot;수정이 안 됐다&quot;는 제보는 먼저 캐시를 의심한다. 현재 코드와 수정 전 코드(<code>git show 커밋:경로</code>)로 각각 재현해서 어느 쪽 증상인지 가린다.</div></li></ul>
+<h3 id="s4">수정 후 확인 순서</h3>
+<div class="table-wrap"><table><thead><tr><th>단계</th><th>방법</th></tr></thead><tbody>
+<tr class="u"><td>문법</td><td><code>node --check public/app.js</code> (서버 파일도 같은 방식)</td></tr>
+<tr class="u"><td>인코딩·줄바꿈</td><td>기존 줄바꿈 형식 유지, BOM 없음, <code>U+FFFD</code>(깨진 글자) 0개</td></tr>
+<tr class="u"><td>새 기능</td><td>시나리오 스크립트로 확인. 저장된 기록이 바뀌지 않았는지도 비교한다</td></tr>
+<tr class="u"><td>회귀</td><td>기존 시나리오 재실행, 수정 전후를 같은 방법으로 비교</td></tr>
+<tr class="u"><td>화면</td><td>모바일 390px·좁은 폭 320px·데스크톱, 라이트/다크, 카드 밖 이탈 여부</td></tr>
+<tr class="u"><td>데이터를 바꿨을 때</td><td>&quot;데이터 규칙 &gt; 공통&quot;의 확인 항목</td></tr>
+</tbody></table></div>
+<h3 id="s5">도구 사용 시 주의 (실제로 사고가 난 항목)</h3>
+<ul><li class="u"><div class="li-main"><strong>UTF-8 파일을 PowerShell의 <code>Get-Content</code>/<code>Set-Content</code>로 고치지 않는다.</strong> 시스템 인코딩(cp949)으로 읽고 저장해서 한글이 전부 깨진다(2026-11-10 <code>index.html</code> 사고). 파일 수정은 편집 도구나, 바이트/UTF-8 명시 방식(<code>python -X utf8</code>)을 쓴다. 깨졌다면 <code>git show HEAD:경로</code>로 복원한다.</div></li>
+<li class="u"><div class="li-main"><strong>Bash 도구의 명령 문자열 안 백슬래시(<code>\\</code>, <code>\n</code>)는 줄어들어 전달된다.</strong> 이스케이프가 들어간 패치 스크립트는 파일로 만들어 실행한다.</div></li>
+<li class="u"><div class="li-main"><strong>줄바꿈:</strong> 작업 트리의 <code>app.js</code>, <code>style.css</code>, <code>server.js</code>는 CRLF, <code>index.html</code>과 <code>net2.controller.js</code>, <code>lib/quiz-utils.js</code>는 LF다(git <code>core.autocrlf=true</code>). 파일의 기존 줄바꿈 형식을 유지하고 혼재시키지 않는다.</div></li>
+<li class="u"><div class="li-main">BOM을 추가하지 않는다. 수정 후 <code>U+FFFD</code>가 없는지 확인한다.</div></li>
+<li class="u"><div class="li-main"><strong>3000 포트는 사용자가 쓴다.</strong> 테스트 서버는 다른 포트(<code>PORT=3001</code>)로 띄우고, 끝나면 반드시 종료한다. 사용자가 띄운 프로세스는 종료하지 않는다(2026-11-10 테스트 서버가 3000을 점유해 사용자의 <code>npm start</code>가 실패했다).</div></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s6" data-title="실행·배포">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">실행·배포<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<pre class="u"><code>npm install        # express, cors, better-sqlite3
+node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)</code></pre>
+<ul><li class="u"><div class="li-main">접속: <code>http://localhost:3000</code></div></li>
+<li class="u"><div class="li-main"><strong>관리자 API는 환경변수 <code>ADMIN_PASSWORD</code>를 설정해야 켜진다.</strong> 미설정이면 항상 401이다. 예: PowerShell <code>$env:ADMIN_PASSWORD=&quot;새비밀번호&quot;; npm start</code></div></li>
+<li class="u"><div class="li-main">이미 3000 포트를 쓰는 프로세스가 있으면 <code>EADDRINUSE</code> 오류로 서버가 바로 종료된다. 다른 포트(<code>$env:PORT=3001</code>)로 켜거나 기존 프로세스를 먼저 종료한다.</div></li>
+<li class="u"><div class="li-main">세션은 서버 메모리(<code>Map</code>)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)</div></li>
+<li class="u"><div class="li-main"><strong>배포:</strong> <code>.github/workflows/deploy.yml</code>. <code>main</code>에 push하면 운영 서버에서 <code>git pull</code> → <code>npm install --omit=dev</code> → <code>pm2 reload quiz-app</code>을 실행한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.</div></li>
+<li class="u"><div class="li-main">정적 파일은 <code>express.static</code>으로 서빙하고 <code>index.html</code>에 캐시 방지 헤더가 없다. 배포 후에도 브라우저가 옛 <code>index.html</code>을 쓰면 옛 <code>app.js</code>·<code>style.css</code>가 그대로 보인다.</div></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s7" data-title="구조">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">구조<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<pre class="u"><code>server.js                    정처기 API(/api/quiz/*), 제보·로그·관리자 API, 정적 파일 서빙
+routes/net2.routes.js        /api/net2/* 라우팅
+controllers/net2.controller.js  네트워크관리사 2급 API
+lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점)
+public/index.html, app.js, style.css   프런트엔드 (단일 페이지)
+data/written.json            정처기 필기 (1,900문항)
+data/practical.json          정처기 실기 (191문항)
+data/net2/written.json       네트워크관리사 2급 필기 (1,150문항, 23개 회차)
+feedback.db                  SQLite: 제보(feedback), 활동 로그(activity_logs)
+scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
+.claude/settings.json        CLAUDE.md 수정 시 변환기를 실행하는 훅</code></pre>
+<ul><li class="u"><div class="li-main">서버는 <code>public/</code>만 외부에 내보낸다. <code>CLAUDE.md</code>, <code>CLAUDE.html</code>, <code>scripts/</code>는 사이트에서 열리지 않는다.</div></li>
+<li class="u"><div class="li-main">루트의 <code>GEMINI.md</code>, <code>적용된 기능.txt</code>, <code>fix.js</code>, <code>preview.html</code>, <code>sessions.json</code>, <code>server_data_bak*</code>, <code>server_js_bak_*</code>는 이전 작업의 부속·백업 파일이다. 용도를 확인하기 전에는 수정하거나 삭제하지 않는다.</div></li></ul>
+<h3 id="s8">API</h3>
+<p class="u">두 서버가 같은 모양이다: <code>GET /rounds</code>, <code>POST /new</code>, <code>POST /check-answer</code>, <code>POST /submit</code>, <code>GET /search</code>.<br><code>/new</code>는 클라이언트에 <code>answer</code>와 <code>desc</code>를 빼고 보낸다. 정답은 <code>/check-answer</code>와 <code>/submit</code>으로만 나간다. 이 원칙을 깨지 않는다.</p>
+<ul><li class="u"><div class="li-main"><strong><code>POST /new</code> 본문:</strong> <code>year</code>, <code>examType</code>, <code>bookmarkIds</code>, <code>subject</code>, <code>targetQuestionId</code>, <code>resumeIds</code></div><ul><li><div class="li-main">분기 우선순위: <code>targetQuestionId</code>(단일) → <code>resumeIds</code>(이어풀기) → <code>bookmarkIds</code> → <code>year==='sequential'</code> → <code>subject</code> → <code>year==='cbt'|'all'</code>(랜덤) → 그 외는 회차/연도 매칭(<code>source</code> <code>includes</code>).</div></li>
+<li><div class="li-main"><code>bookmarkIds</code>는 배열을 기대하지만 <code>{ids:[...]}</code> 객체도 받아준다(<code>normalizeBookmarkIds</code>).</div></li>
+<li><div class="li-main"><code>resumeIds</code>: 정수 배열(최대 2000개)이고 <code>year</code>가 <code>sequential/subject/bookmark/target</code>이 아닐 때만 인정한다. 저장된 <strong>id 순서 그대로</strong> 세션을 복원한다. 회차 풀이는 시작마다 문항이 섞이는데(네트워크관리사) 이어풀기에서 순서가 바뀌면 안 되기 때문이다.</div></li>
+<li><div class="li-main">응답 문항에는 <code>type</code>이 항상 들어간다(실기 데이터에는 <code>type</code>이 없어 서버가 <code>practical</code>로 보강).</div></li>
+<li><div class="li-main">랜덤(<code>cbt</code>/<code>all</code>)은 문제+보기가 같은 중복 문항을 제거한 뒤 뽑는다(<code>dedupeQuestions</code>).</div></li>
+<li><div class="li-main">보기 순서는 섞지 않는다. 문항 순서만 섞는다.</div></li></ul></li>
+<li class="u"><div class="li-main"><strong><code>POST /submit</code> 응답:</strong> <code>score, total, isPassed, isGwarak, gwarakApplied, gwarakSubjects, reviewData</code>. <code>reviewData</code>에는 <code>type</code>, <code>subject</code>, <code>userAnswer</code>, <code>realAnswer</code>, <code>earnedScore</code>, <code>maxScore</code>가 있다. DB에는 아무것도 쓰지 않는다.</div></li>
+<li class="u"><div class="li-main"><strong><code>GET /search</code>:</strong> 결과에 <code>type</code>을 보강해서 돌려준다(검색 결과에서 즐겨찾기할 때 필요).</div></li>
+<li class="u"><div class="li-main">세션에는 <code>examLike</code>(랜덤·회차 풀이 여부)가 저장된다. 과락 판정에 쓴다.</div></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s9" data-title="세션 종류별 동작">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">세션 종류별 동작<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<div class="table-wrap"><table><thead><tr><th>세션</th><th><code>year</code> 값</th><th>타이머</th><th>진행도 저장·이어풀기</th><th>과락(정처기 필기)</th><th>새로고침 시</th></tr></thead><tbody>
+<tr class="u"><td>회차(연도) 풀이</td><td><code>2026년 4회</code>, <code>2021년</code> 등</td><td>있음 (필기 150분/네트워크 60분, 실기 문항수×90초)</td><td>✅ 회차별</td><td class="mark">✅</td><td>저장된 진행으로 복원</td></tr>
+<tr class="u"><td>랜덤 모의고사</td><td><code>cbt</code>(필기), <code>all</code>(실기)</td><td>있음</td><td class="mark">✅</td><td class="mark">✅</td><td>저장된 진행으로 복원</td></tr>
+<tr class="u"><td>순차 풀이</td><td><code>sequential</code></td><td>없음</td><td>✅ (기존 순차풀이 저장본)</td><td class="mark">❌</td><td>저장된 위치로 복원</td></tr>
+<tr class="u"><td>과목 집중</td><td><code>subject</code></td><td>없음</td><td class="mark">❌</td><td class="mark">❌</td><td>단일 문항으로 열림</td></tr>
+<tr class="u"><td>즐겨찾기 모의고사</td><td><code>bookmark</code></td><td>없음</td><td class="mark">❌</td><td class="mark">❌</td><td>단일 문항으로 열림</td></tr>
+<tr class="u"><td>오답 노트 다시 풀기</td><td><code>bookmark</code> (id 목록 전달)</td><td>없음</td><td class="mark">❌</td><td class="mark">❌</td><td>단일 문항으로 열림</td></tr>
+<tr class="u"><td>단일 문항(분석 탭 &quot;문제풀기&quot; 등)</td><td><code>target</code></td><td>없음</td><td class="mark">❌</td><td class="mark">❌</td><td>그 문항 1개</td></tr>
+</tbody></table></div>
+</div>
+</section>
+
+<section class="card k-normal" id="s10" data-title="데이터 규칙">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">데이터 규칙<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<h3 id="s11">공통</h3>
+<ul><li class="u"><div class="li-main">파일은 UTF-8, 유효한 JSON 배열이어야 한다(끝 쉼표 금지). 저장 후 파싱 검증을 한다.</div></li>
+<li class="u"><div class="li-main"><strong>id는 함부로 바꾸지 않는다.</strong> 사용자 브라우저의 즐겨찾기, 풀이 이력(<code>solvedIds</code>), 분석 탭의 &quot;문제풀기&quot;, 오답 노트, 순차풀이·회차 풀이 저장본이 id나 순서에 의존한다. (2026-11-10 네트워크관리사 id를 1~1150으로 재부여해서 이전에 저장된 기록이 다른 문항을 가리킬 수 있게 됐다.)</div></li>
+<li class="u"><div class="li-main"><strong><code>text</code>도 함부로 바꾸지 않는다.</strong> 즐겨찾기는 <code>text</code>로 식별하고, 오답 노트와 My 탭 정답 보완은 저장된 <code>text</code>가 현재 데이터와 같은지로 같은 문제인지 판단한다. 문제 <code>text</code>를 바꾸면 그 문제의 기존 즐겨찾기·오답 노트 연결이 끊긴다. 텍스트 수정은 영향 범위를 함께 보고한다.</div></li>
+<li class="u"><div class="li-main"><code>source</code>로 회차를 매칭한다(<code>includes</code> 방식). 표기 형식을 바꾸지 않는다.</div></li>
+<li class="u"><div class="li-main">데이터를 바꾼 뒤 확인할 것: JSON 파싱, id 중복·연속성, 회차별 문항 수, <code>answer</code> 범위(1~4), <code>desc</code>의 정답 번호 일치, 해당 문항의 화면 렌더링(모바일 390px·데스크톱, 라이트/다크).</div></li></ul>
+<h3 id="s12">정처기 필기 <code>data/written.json</code></h3>
+<ul><li class="u"><div class="li-main">키: <code>id, type, source, subject, text, view, choices, answer, desc</code></div></li>
+<li class="u"><div class="li-main">id 형식은 <code>YYYYRRNN</code>(회차당 100문항이라 100번째는 <code>YYYYRRNNN</code>, 예: <code>20200101</code> = 2020년 1회 1번, <code>202602100</code> = 2026년 2회 100번). <code>source</code> 예: <code>2020년 1회 필기 기출</code></div></li>
+<li class="u"><div class="li-main"><code>subject</code>는 <code>1과목: 소프트웨어 설계</code> ~ <code>5과목: 정보시스템 구축관리</code>, 회차당 과목별 20문항. 분석 탭은 이 <code>subject</code>를 쓴다.</div></li>
+<li class="u"><div class="li-main"><code>desc</code>는 한 줄 설명 형식이며 <code>[오답 풀이]</code> 섹션이 없다(네트워크관리사와 다름).</div></li></ul>
+<h3 id="s13">정처기 실기 <code>data/practical.json</code></h3>
+<ul><li class="u"><div class="li-main">키: <code>id, source, text, view, answer, desc</code> (+ 다중 입력 문항은 <code>inputCount</code>)</div></li>
+<li class="u"><div class="li-main"><strong><code>type</code> 필드가 없다.</strong> 서버가 응답에서 <code>practical</code>로 보강하지만, 데이터를 직접 읽는 코드를 만들 때는 주의한다.</div></li>
+<li class="u"><div class="li-main">복수 정답은 <code>,</code>로 구분한다. <code>|</code>는 대체 표기로 지원한다(아래 채점 규칙).</div></li>
+<li class="u"><div class="li-main">id 107은 비어 있다.</div></li></ul>
+<h3 id="s14">네트워크관리사 2급 필기 <code>data/net2/written.json</code></h3>
+<ul><li class="u"><div class="li-main">키 순서: <code>id, source, subject, type, text, view, choices, answer, desc</code></div></li>
+<li class="u"><div class="li-main">id는 1~1150, 2021년 1회 → 2026년 4회 순서. <code>source</code> 예: <code>2026년 1회 기출</code>. 23개 회차, 회차당 50문항. 2023년 4회는 없다.</div></li>
+<li class="u"><div class="li-main"><code>subject</code>는 <code>TCP/IP</code>, <code>네트워크 일반</code>, <code>NOS</code>, <code>네트워크 운용기기</code> 4개.</div></li>
+<li class="u"><div class="li-main"><code>text</code>: 질문 + <code>\n\n</code> + 이미지에서 옮긴 지문. 앱은 <strong>첫 줄을 굵은 질문, 나머지를 지문 카드</strong>로 그린다. 시나리오형 문제는 질문을 첫 줄로 올리고 지문은 문장 단위로 줄바꿈한다. &quot;이때…&quot;, &quot;해당…&quot;처럼 앞 지문을 가리키는 질문은 원래 순서(지문 → 질문)를 유지한다. 불릿은 <code>- </code>.</div></li>
+<li class="u"><div class="li-main"><code>view</code>: 터미널 출력·설정 파일·코드만 넣고 실제 줄바꿈과 들여쓰기를 유지한다. 없으면 <code>null</code>이다(현재 1,092문항이 <code>null</code>).</div></li>
+<li class="u"><div class="li-main"><code>desc</code> 형식:</div><pre><code>정답: N. &lt;요약&gt;
+
+[오답 풀이]
+- 1번: ...
+- 2번: ... 정답이다.
+- 3번: ...
+- 4번: ...
+
+[보충 개념]
+&lt;문단&gt;</code></pre>
+<p>정답 보기 줄에만 &quot;정답이다.&quot;가 들어가고, <code>정답: N</code>은 <code>answer</code>와 같아야 한다. 이 형식은 2025년 일부와 2026년 문항(250개)만 따른다. 나머지 900문항(2021년~2025년)은 <code>정답: N.</code>으로 시작하지 않는 옛 형식 <code>desc</code>다.</p></li>
+<li class="u"><div class="li-main">원문 PDF의 문자를 그대로 둔다: <code>′</code>(U+2032) 따옴표, <code>￦</code>, <code>–</code>, <code>—</code>, <code>IEEE 802.3 : …</code> 같은 띄어쓰기.</div></li>
+<li class="u"><div class="li-main">회차 간에 같은 문제(문제+보기 동일)가 다수 재출제된다(네트워크관리사 215그룹, 정처기 필기 51그룹). 랜덤 모의고사에서는 제거되지만, 즐겨찾기는 <code>text</code> 기준이라 한쪽만 ★해도 같은 문제가 모두 켜진다.</div></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s15" data-title="채점 규칙">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">채점 규칙<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ul><li class="u"><div class="li-main"><strong>정처기 필기:</strong> 정답 수 ÷ 문항 수 × 100, 60점 이상 합격. <strong>과락:</strong> 랜덤·회차 풀이에서 한 과목이라도 정답률이 40% 미만이면 불합격(<code>gwarakApplied: true</code>). 과목 집중·즐겨찾기·순차·단일은 과락을 적용하지 않는다. 랜덤은 과목별 문항 수가 균등하지 않을 수 있어 비율로 판정한다.</div></li>
+<li class="u"><div class="li-main"><strong>네트워크관리사 필기:</strong> 문항당 2점, <code>획득 ÷ (문항 수 × 2) × 100</code>으로 <strong>어떤 세션이든 100점 만점으로 환산</strong>, 60점 이상 합격. 과락은 없다(규정 확인 필요, 아래 참고).</div></li>
+<li class="u"><div class="li-main"><strong>정처기 실기:</strong> 문항당 5점, 복수 정답 부분점수(<code>맞은 개수/전체 × 5</code>, 소수 첫째 자리), 총점 비율 환산. <code>lib/quiz-utils.js</code>의 <code>scorePractical</code>:</div><ul><li><div class="li-main">정답 구분자는 <code>,</code>와 앞뒤 공백이 있는 <code> / </code>. <code>MC/DC</code>처럼 붙은 슬래시는 한 단어다. 사용자 입력은 정답에 붙은 슬래시가 없으면 <code>/</code>도 구분자로 허용한다(예전 방식과 호환).</div></li>
+<li><div class="li-main">대소문자와 앞뒤 공백은 무시하고, 단어 중간 공백이 다르면 오답이다(<code>세션하이재킹</code> ≠ <code>세션 하이재킹</code>). 입력 순서는 상관없다.</div></li>
+<li><div class="li-main"><code>|</code> 대체 표기: 모든 쉼표 조각에 <code>|</code>가 있으면 조각별 대체(<code>A|a, B|b</code>), 아니면 전체 대체(<code>③, ④|3, 4</code>, <code>패키지|Package</code>)로 보고 가장 잘 맞는 쪽으로 채점한다.</div></li>
+<li><div class="li-main">입력칸이 1개이고 <code>SELECT/INSERT/…</code>로 시작하며 쉼표가 있는 정답은 쉼표로 쪼개지 않는 한 문장으로 취급한다(조각 입력으로 부분점수를 받지 않도록).</div></li></ul></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s16" data-title="프런트엔드 메모">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">프런트엔드 메모<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<h3 id="s17">브라우저 저장소 (localStorage)</h3>
+<p class="u">키는 자격증별로 <code>정처기_*</code> / <code>net2_*</code>이고, 테마만 <code>cbt_theme</code>이다.</p>
+<div class="table-wrap"><table><thead><tr><th>키</th><th>내용</th><th>지워지는 때</th></tr></thead><tbody>
+<tr class="u"><td><code>즐겨찾기_목록</code></td><td>★한 문항 객체 배열. 풀이 화면에서 ★하면 <code>answer</code>·<code>desc</code> 없이 저장된다</td><td>사용자가 ★ 해제</td></tr>
+<tr class="u"><td><code>이력_목록</code></td><td>제출한 풀이 기록. 문항별 <code>isRight</code>, <code>userAnswer</code>, <code>realAnswer</code>, <code>desc</code> 포함</td><td>사용자가 삭제</td></tr>
+<tr class="u"><td><code>순차풀이_중간저장</code></td><td>순차 풀이 위치와 답안</td><td>순차 풀이 제출</td></tr>
+<tr class="u"><td><code>회차풀이_중간저장</code></td><td>회차·랜덤 진행도</td><td>해당 회차 제출, ✕ 삭제</td></tr>
+</tbody></table></div>
+<ul><li class="u"><div class="li-main">백업 파일에는 즐겨찾기, 이력, 순차 풀이 저장본이 들어간다. 복원할 때 다른 자격증 백업은 거부하고, 형식이 맞지 않는 항목은 제외한다. 회차 진행도는 백업 파일에 <strong>포함되지 않는다</strong>.</div></li></ul>
+<h3 id="s18">진행도와 이어풀기</h3>
+<ul><li class="u"><div class="li-main"><strong>회차·랜덤 진행도(<code>*_회차풀이_중간저장</code>):</strong> 객체 <code>{ &quot;&lt;mode&gt;|&lt;year&gt;&quot;: { year, mode, ids, currentQuizIndex, savedUserAnswers, remainingTimeSeconds, answered, total, savedAt } }</code>.</div><ul><li><div class="li-main">저장 시점: 문항 렌더링, 답안 선택·입력, 타이머 10초마다, 화면 가려짐·페이지 이탈(<code>visibilitychange</code>, <code>pagehide</code>). 아무것도 안 풀고 1번이면 저장하지 않는다. 제출하면 삭제한다.</div></li>
+<li><div class="li-main">이어풀기는 <code>triggerNewQuizSession(year, …, 'resume')</code>. 서버가 <code>resumeIds</code>를 모르는 옛 버전이어도 클라이언트가 저장된 순서대로 다시 정렬한다. 문항 구성이 달라졌으면 저장본을 버리고 처음부터 시작한다.</div></li></ul></li>
+<li class="u"><div class="li-main"><strong>&quot;이어서 풀기&quot; 카드:</strong> 첫 화면과 각 대시보드 맨 위. 저장된 풀이로 확인창 없이 바로 이동하고, ✕로 삭제한다(<code>listSavedSessions</code>, <code>buildResumeCardHtml</code>, <code>resumeSavedSession</code>). 회차 목록에는 <code>· 진행 중 40/50</code>이 붙는다.</div></li>
+<li class="u"><div class="li-main"><strong>URL:</strong> 풀이 중 문항은 <code>?mode=…&amp;id=…&amp;cert=…</code>이고, 회차·랜덤은 <code>&amp;round=&lt;year&gt;</code>, 순차는 <code>&amp;year=sequential</code>이 붙는다. 새로고침(<code>window.onload</code>)하면 이 값으로 복원하고, 헤더(Back)와 탭바를 켠다. 잘못된 주소는 대시보드로 보낸다.</div></li></ul>
+<h3 id="s19">풀이 화면</h3>
+<ul><li class="u"><div class="li-main"><strong>세션 시작:</strong> <code>triggerNewQuizSession(year, ids, subject, targetId, resumeMode, opts)</code>. <code>opts.label</code>은 이력에 남길 제목(서버 라벨 대신), <code>opts.expected</code>는 <code>{id: text}</code>로 서버가 돌려준 문항이 저장된 문제와 같은지 검사할 때 쓴다(오답 노트).</div></li>
+<li class="u"><div class="li-main"><strong>정답 확인:</strong> 문제가 나오면 정답을 미리 받아 두고(<code>prefetchAnswer</code>) 버튼을 누르면 즉시 표시한다. 미리 받은 정답은 버튼을 누르기 전에는 화면에 나오지 않는다. 응답 전이면 &quot;정답을 불러오는 중...&quot;을 보이고, 응답이 늦게 와도 이동한 다른 문항에는 그리지 않는다. <strong>자동 스크롤은 하지 않는다.</strong> (해설은 버튼 위쪽에 나타나서 모바일에서는 버튼이 아래로 밀린다.)</div></li>
+<li class="u"><div class="li-main"><strong>제보하기:</strong> 팝업(<code>openFeedbackModal</code>)에서 분류(오류 제보·기능 수정·기능 제안·기타)를 고르고 내용을 쓴다. 메시지 앞에 <code>[분류]</code>, 뒤에 자격증·모드(·현재 문항)를 붙여 <code>/api/feedback</code>으로 보낸다. <strong>DB에는 분류 컬럼이 없다.</strong></div></li></ul>
+<h3 id="s20">My 탭 (즐겨찾기)</h3>
+<ul><li class="u"><div class="li-main">문제, 지문(<code>view</code>), 필기는 보기 4개(정답 보기 강조), 정답, 해설을 보여 준다(<code>renderMyBookmarksTab</code>).</div></li>
+<li class="u"><div class="li-main"><strong>정답 보완:</strong> 풀이 화면에서 ★한 문항은 저장본에 정답·해설이 없다. My 탭을 열 때 그런 문항만 모아 <code>/new</code>(<code>bookmark</code>) + 빈 답안 <code>/submit</code>으로 정답·해설을 받아 <strong>화면에만</strong> 채운다(<code>fillMissingBookmarkAnswers</code>, 메모리 캐시 <code>bookmarkAnswerCache</code>). 저장된 즐겨찾기는 바꾸지 않고, 이력도 만들지 않는다.</div></li>
+<li class="u"><div class="li-main">id는 같은데 <code>text</code>가 다르면(데이터 개정) 다른 문제의 정답을 보여 주지 않고 &quot;정답 정보를 불러오지 못했습니다.&quot;를 표시한다.</div></li></ul>
+<h3 id="s21">분석 탭</h3>
+<ul><li class="u"><div class="li-main"><strong>오답 노트:</strong> 맨 위 카드에서 &quot;모든 문제&quot; 또는 회차(<code>source</code>)를 골라 틀린 문제만 다시 푼다(<code>buildWrongNoteData</code>, <code>buildWrongNoteCardHtml</code>, <code>startWrongNoteQuiz</code>).</div><ul><li><div class="li-main">기준: 이력을 오래된 순으로 훑어 <strong>그 문제를 가장 최근에 푼 결과가 오답</strong>인 것만 모은다. 다시 풀어 맞히면(제출해야 반영) 빠지고, 다시 틀리면 돌아온다. 이력 자체는 바꾸지 않는다.</div></li>
+<li><div class="li-main">같은 문제 판단: <code>text</code> + <code>view</code> + 정렬한 보기가 같으면 한 문항(<code>wrongNoteKey</code>). 재출제 문제는 한 번만 세고, 푼 회차마다 회차별 목록에 나타난다.</div></li>
+<li><div class="li-main">이력의 id가 현재 데이터에서 다른 문제이면 그 문항만 빼고 시작하며, 빠진 개수를 알린다.</div></li>
+<li><div class="li-main">이력 제목은 <code>오답 노트 다시 풀기 (전체)</code> / <code>(…회차)</code>로 남는다(<code>activeLabelOverride</code>).</div></li></ul></li>
+<li class="u"><div class="li-main"><strong>과목:</strong> <code>getSubjectName</code>은 <code>q.subject</code>를 쓰고, 이전 이력(없는 경우)은 정처기 필기 id 규칙으로 보정한다. 합격률은 저장된 <code>isPassed</code>(서버 판정, 과락 포함)를 쓰고, 이전 이력은 60점 기준이다.</div></li>
+<li class="u"><div class="li-main">정답률과 &quot;자주 틀리는 취약 문제&quot;는 모든 이력을 누적한다. 다시 맞혀도 과거 오답 횟수는 줄지 않는다.</div></li></ul>
+<h3 id="s22">이력 화면 (대시보드 아래)</h3>
+<ul><li class="u"><div class="li-main">기록마다 &quot;상세 문항 확인하기&quot;(전체)와 &quot;틀린 문제만 보기 (N)&quot; 버튼이 있고, 펼친 영역에 <code>전체 | 틀린 문제</code> 전환 칩이 있다(<code>setHistoryFilter</code>, <code>showHistoryWrongOnly</code>). 필터는 화면에서만 숨긴다.</div></li>
+<li class="u"><div class="li-main"><code>isRight</code>가 없는 옛 형식 이력(<code>wrongs</code>)은 모두 오답으로 본다.</div></li></ul>
+<h3 id="s23">렌더링과 레이아웃</h3>
+<ul><li class="u"><div class="li-main">화면 렌더링은 <code>innerHTML</code> 문자열 조립 방식이다. 사용자 입력이나 데이터 문자열을 넣을 때는 <code>escapeHtml()</code>을 쓴다. 입력칸 <code>value</code>와 <code>source</code>도 이스케이프한다.</div></li>
+<li class="u"><div class="li-main"><strong><code>formatViewHtml</code>:</strong> 코드 패턴은 코드 박스, <code>|</code>가 있는 줄은 표로 바꾼다. 단, 파이프가 있어도 명령어·터미널·스크립트로 판정되면(<code>looksLikeCommandText</code>) 표 대신 <code>code-flow-box term</code>(줄바꿈·들여쓰기 유지, 가로 스크롤)으로 그린다. 들여쓴 블록(불릿 목록 제외)도 같은 박스다. 데이터를 고칠 때 이 렌더링 결과를 같이 확인한다.</div></li>
+<li class="u"><div class="li-main"><strong>레이아웃:</strong> 모바일 기본(최대 430px), 769px 이상은 2단 레이아웃(최대 960px). <code>html, body</code>에 <code>width: 100%</code>가 있어야 한다(없으면 내용물 폭에 따라 앱 폭이 달라진다). flex 안의 입력칸은 <code>min-width: 0</code>이어야 좁은 화면에서 버튼이 카드 밖으로 밀리지 않는다. 라이트/다크 테마 모두 확인한다.</div></li>
+<li class="u"><div class="li-main">한 화면 안에서 요소가 <strong>부모 카드 영역을 벗어나는지</strong>도 확인한다. 화면(viewport) 밖으로 나가는지만 보면 <code>overflow: hidden</code>인 앱 영역 안에서의 이탈을 놓친다.</div></li>
+<li class="u"><div class="li-main">새로 만드는 입력칸·선택 상자는 글자 크기를 16px 이상으로 한다(iOS 사파리 자동 확대 방지).</div></li></ul>
+</div>
+</section>
+
+<section class="card k-issues" id="s24" data-title="남은 문제·확인 필요">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">남은 문제·확인 필요<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<p class="u">2026-11-13 기준. 수정 요청이 오면 아래를 참고하되, 고치기 전 반드시 재확인하고 승인받는다.</p>
+<div class="table-wrap"><table><thead><tr><th>우선</th><th>내용</th><th>비고</th></tr></thead><tbody>
+<tr class="u"><td><span class="badge b-feat">기능</span></td><td>즐겨찾기가 <code>text</code>만으로 같은 문제를 판단한다. <code>text</code>는 같고 보기가 다른 문항(2026년 문항 중 15개)은 다른 문제인데 ★가 함께 켜진다.</td><td><code>text</code> + 보기 비교로 바꾸는 안 제안, 승인 대기</td></tr>
+<tr class="u"><td><span class="badge b-deploy">배포</span></td><td><code>index.html</code>에 캐시 방지 헤더가 없어 배포 후에도 옛 화면을 보는 경우가 있다.</td><td><code>Cache-Control: no-cache</code> 추가 안 제안, 승인 대기</td></tr>
+<tr class="u"><td><span class="badge b-data">데이터</span></td><td>정처기 필기 <code>20210207</code>과 <code>20230107</code>은 문제·보기가 같은데 정답이 다르다(Generalization / Realization). 해설도 &quot;기출문제 답안 기준…&quot; 형태.</td><td>어느 쪽이 맞는지 검수 필요</td></tr>
+<tr class="u"><td><span class="badge b-data">데이터</span></td><td>실기 <code>inputCount</code>와 정답 조각 수가 다른 문항 8개(54, 91, 94, 101, 122, 139, 152, 170). 한글·영문 병기 정답 후보 11개.</td><td>채점은 보정했으나 데이터 정리 후보</td></tr>
+<tr class="u"><td><span class="badge b-data">데이터</span></td><td>정처기 필기 <code>20220271</code> 보기 4개 끝에 공백, <code>20240263</code> 보기가 리터럴 <code>\t</code>, <code>\n</code>(의도일 수 있음).</td><td>확인 필요</td></tr>
+<tr class="u"><td><span class="badge b-check">확인</span></td><td>네트워크관리사 필기에 과락 규정이 있는지, 2023년 4회가 실제로 시행됐는지</td><td>현재는 과락 없음, 데이터 없음</td></tr>
+<tr class="u"><td><span class="badge b-mobile">모바일</span></td><td>실기 입력칸(14.5px)과 검색 입력칸(13.5px)은 16px 미만이라 iOS 사파리에서 포커스 시 화면이 자동 확대될 수 있다(제보 팝업 입력칸은 16px).</td><td>실제 기기에서 확인된 적은 없음</td></tr>
+<tr class="u"><td><span class="badge b-design">설계</span></td><td>과목 집중·즐겨찾기·오답 노트·단일 세션은 새로고침하면 단일 문항으로 열린다. 서버 세션은 메모리라 재시작하면 소실된다.</td><td></td></tr>
+<tr class="u"><td><span class="badge b-design">설계</span></td><td>이어풀기 진행도는 기기·브라우저별이고 백업 파일에 포함되지 않는다.</td><td>백업에 넣을지 결정 필요</td></tr>
+<tr class="u"><td><span class="badge b-design">설계</span></td><td>정답 해설이 버튼 위에 나타나서 모바일에서 버튼이 아래로 밀린다. 해설을 버튼 아래로 옮기는 안이 있다.</td><td>사용자 결정 필요</td></tr>
+<tr class="u"><td><span class="badge b-design">설계</span></td><td>My 탭 정답 보완과 오답 노트는 전용 API 없이 <code>bookmark</code> 세션을 빌려 쓴다. 서버 메모리에 쓰지 않는 세션이 남는다(세션이 500개를 넘으면 서버가 24시간 지난 것을 지운다).</td><td>전용 조회 API를 만들면 정리된다</td></tr>
+<tr class="u"><td><span class="badge b-sec">보안</span></td><td>관리자 API는 헤더(<code>x-admin-key</code>) 외에 쿼리스트링(<code>?key=</code>)도 받는다(기존 호출 호환을 위해 유지).</td><td>제거하려면 기존 호출 확인 필요</td></tr>
+<tr class="u"><td><span class="badge b-a11y">접근성</span></td><td>글자 대비 기준(WCAG AA 4.5:1) 미달 후보 약 29개 남음(주색 <code>#0284c7</code> 글자 4.1:1, 탭바, 다크 테마 붉은 글자 등).</td><td>디자인 색상 체계 결정 필요</td></tr>
+<tr class="u"><td><span class="badge b-feat">기능</span></td><td>제보 &quot;하루 최대 N개&quot; 제한은 서버에 없다. 제보 분류를 별도 컬럼으로 저장하려면 <code>feedback.db</code> 변경(승인 필요)이 든다.</td><td></td></tr>
+</tbody></table></div>
+</div>
+</section>
+
+<section class="card k-normal" id="s25" data-title="보안·개인정보">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">보안·개인정보<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ul><li class="u"><div class="li-main">비밀번호, API 키, 토큰을 코드나 커밋에 새로 넣지 않는다. 필요하면 환경변수로 받는다. (관리자 비밀번호는 <code>ADMIN_PASSWORD</code>. 이전 값은 공개 저장소 이력에 남아 있으니 쓰지 않는다.)</div></li>
+<li class="u"><div class="li-main"><code>feedback.db</code>의 제보 내용과 활동 로그(fingerprint)는 출력하거나 외부로 보내지 않는다.</div></li>
+<li class="u"><div class="li-main">저장소는 공개다. 운영 서버 주소·계정 정보는 GitHub Secrets에만 있고 문서와 코드에 적지 않는다.</div></li></ul>
+</div>
+</section>
+
+<section class="card k-normal" id="s26" data-title="테스트">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">테스트<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ul><li class="u"><div class="li-main">브라우저 테스트는 Playwright를 쓴다(프로젝트 의존성이 아니다. 프로젝트 밖 임시 폴더에 설치해서 쓴다). 로컬 서버(<code>http://localhost:포트</code>)에서 하고, 시작 전 localStorage를 비우거나 새 브라우저 컨텍스트로 격리한다.</div></li>
+<li class="u"><div class="li-main">테스트 중에도 코드와 데이터는 수정하지 않는다. 발견 사항은 재현 절차와 함께 보고한다.</div></li>
+<li class="u"><div class="li-main"><strong><code>/api/log</code>, <code>/api/feedback</code>은 차단하거나 가로챈다.</strong> 제보 전송 테스트는 요청을 서버로 보내지 않고 본문만 확인한다.</div></li>
+<li class="u"><div class="li-main">사용자 기록에 의존하는 기능(오답 노트, 이력, 즐겨찾기)은 가짜 기록을 localStorage에 넣어 검증하고, 기능 실행 전후의 저장 내용을 비교해 기존 기록이 그대로인지 확인한다.</div></li>
+<li class="u"><div class="li-main">데이터 변경 후에는 &quot;데이터 규칙 &gt; 공통&quot;의 확인 항목을 점검한다.</div></li></ul>
+<p class="u">검증 방법에서 주의할 점:</p>
+<ul><li class="u"><div class="li-main"><strong>전수 검사는 UI 클릭이 아니라 스크립트로 한다.</strong> 전 회차 API 채점(전부 정답/오답/미입력/60점/59점 경계, 정답 유출 없음), 전 문항 렌더링 스캔(이상 문자열, 보기 4개, 빈 <code>view</code>, 오버플로), 앱 폭 스캔을 쓴다.</div></li>
+<li class="u"><div class="li-main"><strong>스크롤을 보는 테스트에서 Playwright <code>click()</code>/<code>tap()</code>을 쓰지 않는다.</strong> 화면 밖 요소를 누르기 전에 스스로 스크롤해서 앱의 스크롤 동작과 구분되지 않는다. 스크롤을 건드리지 않는 <code>element.click()</code>(JS)로 검증한다.</div></li>
+<li class="u"><div class="li-main"><strong>모바일 에뮬레이션(<code>isMobile</code>)은 스크롤바가 없다.</strong> 사용자가 데스크톱 브라우저 창을 줄이거나 확대(125% 등)한 경우는 <code>isMobile: false</code>로 폭을 줄여 따로 본다.</div></li>
+<li class="u"><div class="li-main"><strong>수정 전 코드와의 비교:</strong> <code>git show HEAD:경로</code>로 수정 전 파일을 라우트로 주입해 같은 시나리오를 돌리면 &quot;고쳐졌는지&quot;를 증명할 수 있다.</div></li>
+<li class="u"><div class="li-main">한글 포함 테스트 스크립트는 파일로 만들어 UTF-8로 실행한다(<code>python -X utf8</code>, <code>PYTHONIOENCODING=utf-8</code>).</div></li>
+<li class="u"><div class="li-main">알려진 테스트 한계: 정답 확인 스크롤 검사(E6)와 과락 배너 문자열 검사(QW-13)는 검사 방식 때문에 실패로 나온다. 앱 결함이 아니다.</div></li></ul>
+</div>
+</section>
+
+<section class="card k-history" id="s27" data-title="수정 이력">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">수정 이력<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<p class="u">자세한 내용은 <code>git log</code>를 본다. 여기에는 다음 작업에 영향을 주는 것만 적는다.</p>
+<div class="table-wrap"><table><thead><tr><th>커밋</th><th>내용</th></tr></thead><tbody>
+<tr class="u"><td><code>6650b05</code></td><td>네트워크관리사 데이터: 2026년 1~4회 추가(950→1,150), <strong>id 1~1150 재부여</strong>, 지문형 문제 줄바꿈 정리</td></tr>
+<tr class="u"><td><code>81e9277</code></td><td>QA 결함 일괄 수정: 즐겨찾기 모의고사 0문항, 네트워크관리사 점수 환산, 정처기 과락, 실기 <code>|</code> 채점, 랜덤 중복 제거, 관리자 비밀번호 환경변수화, 정답 확인 경쟁 상태, 입력값 이스케이프, 제보하기 팝업, 회차 풀이 이어풀기 등</td></tr>
+<tr class="u"><td><code>fb5f371</code></td><td>&quot;이어서 풀기&quot; 카드, 랜덤 모의고사 진행도, 새로고침 시 풀이 복원, 좁은 화면 검색 버튼 이탈</td></tr>
+<tr class="u"><td><code>e9a0ebb</code></td><td>정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거</td></tr>
+<tr class="u"><td><code>d70fbe1</code></td><td><code>html, body</code> 폭 지정. <code>body</code>가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인</td></tr>
+<tr class="u"><td>2026-11-13</td><td>분석 탭 오답 노트, 이력 &quot;틀린 문제만 보기&quot; 필터, My 탭 보기 표시와 정답·해설 보완, <code>CLAUDE.html</code> 변환기와 훅 (커밋 &quot;오답 노트·이력 필터·My 탭 정답 표시 추가&quot;)</td></tr>
+</tbody></table></div>
+</div>
+</section>
+
+<section class="card k-normal" id="s28" data-title="문서 관리">
+<h2><button type="button" class="sec-toggle" aria-expanded="true">문서 관리<span class="chev" aria-hidden="true">▾</span></button></h2>
+<div class="sec-body">
+<ul><li class="u"><div class="li-main"><code>CLAUDE.html</code>은 이 파일을 한눈에 보기 위한 화면이다. <strong>직접 수정하지 않는다.</strong> 내용은 항상 <code>CLAUDE.md</code>에서 고친다.</div></li>
+<li class="u"><div class="li-main">다시 만들기: <code>node scripts/build-claude-html.js</code> (의존성 없음). 내용이 같으면 파일을 다시 쓰지 않는다.</div></li>
+<li class="u"><div class="li-main">자동 갱신: <code>.claude/settings.json</code>의 훅이 Claude Code가 파일을 수정한 직후와 세션을 시작할 때 변환기를 실행한다. 편집기에서 직접 고친 경우는 다음 세션 시작 때 반영되고, 바로 반영하려면 위 명령을 실행하거나 <code>node scripts/build-claude-html.js --watch</code>를 켜 둔다.</div></li>
+<li class="u"><div class="li-main">변환기가 지원하는 문법: 제목(<code>#</code>~<code>###</code>), 문단, 목록(중첩), 번호 목록, 표, 코드 블록, 굵게, 인라인 코드, 링크. 이 범위 안에서 작성한다.</div></li>
+<li class="u"><div class="li-main">이 파일에는 코드와 <code>git log</code>로 알 수 없는 것만 적는다: 규칙, 결정과 그 이유, 사고 사례, 남은 문제. 작업이 끝나면 &quot;남은 문제&quot;와 &quot;수정 이력&quot;을 같이 고친다.</div></li></ul>
+</div>
+</section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var saved = null;
+  try { saved = localStorage.getItem('claude_doc_theme'); } catch (e) {}
+  var dark = saved ? saved === 'dark' : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  function applyTheme() { root.setAttribute('data-theme', dark ? 'dark' : 'light'); }
+  applyTheme();
+  document.getElementById('theme').addEventListener('click', function () {
+    dark = !dark; applyTheme();
+    try { localStorage.setItem('claude_doc_theme', dark ? 'dark' : 'light'); } catch (e) {}
+  });
+
+  var cards = [].slice.call(document.querySelectorAll('.card'));
+  cards.forEach(function (card) {
+    var btn = card.querySelector('.sec-toggle');
+    btn.addEventListener('click', function () {
+      var closed = card.classList.toggle('closed');
+      btn.setAttribute('aria-expanded', String(!closed));
+      syncToggleAll();
+    });
+  });
+  var toggleAll = document.getElementById('toggle-all');
+  function syncToggleAll() {
+    var anyOpen = cards.some(function (c) { return !c.classList.contains('closed'); });
+    toggleAll.textContent = anyOpen ? '모두 접기' : '모두 펼치기';
+  }
+  toggleAll.addEventListener('click', function () {
+    var close = cards.some(function (c) { return !c.classList.contains('closed'); });
+    cards.forEach(function (c) { c.classList.toggle('closed', close); c.querySelector('.sec-toggle').setAttribute('aria-expanded', String(!close)); });
+    syncToggleAll();
+  });
+  function openCard(id) {
+    var el = document.getElementById(id);
+    var card = el && el.closest('.card');
+    if (card) { card.classList.remove('closed'); syncToggleAll(); }
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href^="#"]');
+    if (a && a.getAttribute('href').length > 1) openCard(a.getAttribute('href').slice(1));
+  });
+
+  // 검색: 문단·목록 항목·표의 행 단위로 거른다. 섹션 제목이 맞으면 그 섹션은 전부 보여 준다.
+  var q = document.getElementById('q');
+  var empty = document.getElementById('empty');
+  q.addEventListener('input', function () {
+    var term = q.value.trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function (card) {
+      var units = [].slice.call(card.querySelectorAll('.u'));
+      if (!term) { units.forEach(function (u) { u.classList.remove('hide'); }); card.classList.remove('hide'); shown++; return; }
+      var titleHit = card.getAttribute('data-title').toLowerCase().indexOf(term) !== -1;
+      var hits = 0;
+      units.forEach(function (u) {
+        var hit = titleHit || u.textContent.toLowerCase().indexOf(term) !== -1;
+        // 표의 머리글(열 이름)이 맞으면 그 표의 행을 모두 보여 준다
+        if (!hit && u.tagName === 'TR') {
+          var thead = u.closest('table').querySelector('thead');
+          hit = thead.textContent.toLowerCase().indexOf(term) !== -1;
+        }
+        u.classList.toggle('hide', !hit);
+        if (hit) hits++;
+      });
+      var visible = titleHit || hits > 0;
+      card.classList.toggle('hide', !visible);
+      if (visible) { card.classList.remove('closed'); shown++; }
+    });
+    empty.hidden = shown > 0;
+    syncToggleAll();
+  });
+
+  // 목차: 지금 보고 있는 섹션 표시
+  var links = {};
+  [].slice.call(document.querySelectorAll('.toc a[data-target]')).forEach(function (a) { links[a.getAttribute('data-target')] = a; });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        Object.keys(links).forEach(function (k) { links[k].classList.remove('active'); });
+        if (links[en.target.id]) links[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-80px 0px -70% 0px' });
+    cards.forEach(function (c) { io.observe(c); });
+  }
+})();
+</script>
+</body>
+</html>

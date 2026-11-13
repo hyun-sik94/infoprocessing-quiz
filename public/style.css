@@ -2114,3 +2114,139 @@ body {
     font-weight: bold;
     color: var(--text-muted);
 }
+
+/* 오답 노트 카드 (분석 탭) */
+.wrong-note-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid #ef4444;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+}
+
+.wrong-note-desc {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.wrong-note-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.wrong-note-select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text-main);
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-sub);
+    border-radius: 8px;
+}
+
+.wrong-note-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: inherit;
+    color: var(--on-primary);
+    background-color: var(--primary);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.wrong-note-btn:active {
+    transform: scale(0.97);
+}
+
+/* 이력 상세 필터 */
+.history-filter-bar {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 6px;
+}
+
+.history-filter-chip {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: inherit;
+    color: var(--text-main);
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-sub);
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.history-filter-chip.active {
+    color: var(--on-primary);
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.history-filter-empty {
+    padding: 14px 0;
+    font-size: 12.5px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* My 탭: 필기 즐겨찾기의 보기 목록 */
+.my-choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.my-choice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-main);
+    background-color: var(--bg-sub-box);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.my-choice-item.correct {
+    border-color: #10b981;
+    background-color: rgba(16, 185, 129, 0.12);
+    font-weight: bold;
+}
+
+.my-choice-num {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-title);
+    background-color: var(--border-sub);
+    border-radius: 50%;
+}
+
+.my-choice-item.correct .my-choice-num {
+    color: #ffffff;
+    background-color: #059669;
+}
+
+.my-choice-text {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

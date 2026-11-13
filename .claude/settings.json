@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/build-claude-html.js\"",
+            "timeout": 20,
+            "statusMessage": "CLAUDE.html 갱신 중..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/build-claude-html.js\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
