@@ -12,7 +12,7 @@ Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐�
 | 배포 | `main`에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다 |
 | 문제 수 | 정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150 |
 | 사용자 기록 | 서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도) |
-| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-13 기준 `20261111_01`) |
+| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-13 기준 `20261113_01`) |
 | 문서 | 이 파일을 고치면 `CLAUDE.html`이 자동으로 다시 만들어진다(맨 아래 "문서 관리") |
 
 ## 최우선 규칙
@@ -202,7 +202,8 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 
 ### My 탭 (즐겨찾기)
 
-- 문제, 지문(`view`), 필기는 보기 4개(정답 보기 강조), 정답, 해설을 보여 준다(`renderMyBookmarksTab`).
+- 실기 My와 같은 간단한 모양이다: 문제, 지문(`view`), `[보기]` 박스, "정답 용어:" 한 줄, 해설 한 문단(`renderMyBookmarksTab`).
+- 필기는 보기 4개를 실기 `[보기]` 박스(`view-bogi-container`) 안에 줄 목록으로 넣고 정답 보기를 초록색으로 표시한다. 해설은 `briefExplanation`이 요약 문단만 남긴다("정답: N." 머리말과 `[오답 풀이]`·`[보충 개념]` 이후 생략). 자세한 해설은 풀이 화면과 이력에서 본다.
 - **정답 보완:** 풀이 화면에서 ★한 문항은 저장본에 정답·해설이 없다. My 탭을 열 때 그런 문항만 모아 `/new`(`bookmark`) + 빈 답안 `/submit`으로 정답·해설을 받아 **화면에만** 채운다(`fillMissingBookmarkAnswers`, 메모리 캐시 `bookmarkAnswerCache`). 저장된 즐겨찾기는 바꾸지 않고, 이력도 만들지 않는다.
 - id는 같은데 `text`가 다르면(데이터 개정) 다른 문제의 정답을 보여 주지 않고 "정답 정보를 불러오지 못했습니다."를 표시한다.
 
