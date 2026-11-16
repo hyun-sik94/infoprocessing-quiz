@@ -160,7 +160,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
         <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
         <a class="stat s-issues" href="#s25"><b>15</b><span>남은 문제</span></a>
         <div class="stat"><b>14</b><span>섹션</span></div>
-        <div class="stat wide"><b>2026-11-16 13:03</b><span>CLAUDE.md 마지막 수정</span></div>
+        <div class="stat wide"><b>2026-11-16 14:25</b><span>CLAUDE.md 마지막 수정</span></div>
       </div>
       <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
     </div>
@@ -238,6 +238,8 @@ node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)</code></pr
 <li class="u"><div class="li-main">세션은 서버 메모리(<code>Map</code>)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)</div></li>
 <li class="u"><div class="li-main"><strong>배포:</strong> <code>.github/workflows/deploy.yml</code>. <code>main</code>에 push하면 운영 서버에서 <code>git fetch</code> + <code>git reset --hard origin/main</code> → <code>npm install --omit=dev</code> → <code>pm2 reload quiz-app</code>을 실행하고, <code>pm2-logrotate</code>(10MB·7개 보관)가 없으면 설치한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.</div><ul><li><div class="li-main">2026-11-16에 <code>pull</code>을 <code>reset --hard</code>로 바꿨다. 이력을 다시 써도(강제 push) 배포되게 하기 위해서다. 운영 서버에서 git이 추적하는 파일을 직접 고치면 다음 배포 때 사라진다. <code>feedback.db</code>처럼 추적하지 않는 파일은 남는다.</div></li></ul></li>
 <li class="u"><div class="li-main">정적 파일(html/js/css/svg)은 <code>lib/static-cache.js</code>가 gzip 압축본을 미리 만들어 보낸다. <code>index.html</code>은 <code>no-cache</code>(매번 ETag로 확인), <code>?v=</code>가 붙은 js·css는 1년 보관이다. <strong>그래서 <code>app.js</code>·<code>style.css</code>를 고치면 캐시 버전을 반드시 올려야 한다</strong>(안 올리면 브라우저가 옛 파일을 1년 동안 쓴다).</div></li>
+<li class="u"><div class="li-main"><strong>운영 서버 Node는 v20이다.</strong> 네이티브 모듈(<code>better-sqlite3</code>)은 Node 20을 지원하는 버전만 쓴다. <code>better-sqlite3</code> 13.x는 Node 22 이상 전용이라 서버에서 불러오는 순간 세그폴트로 죽는다(에러 로그에 아무것도 남지 않음). 의존성을 올릴 때는 <code>engines</code>를 확인한다(2026-11-16 장애).</div></li>
+<li class="u"><div class="li-main">배포 스크립트는 <code>set -e</code>로 실패하면 멈추고, 재시작 뒤 <code>http://127.0.0.1:3000/api/quiz/rounds?type=written</code> 응답과 pm2 재시작 횟수(10초 동안 그대로인지)를 확인한다. 통과 못 하면 Actions가 실패로 표시되고 pm2 로그 40줄을 남긴다.</div></li>
 <li class="u"><div class="li-main"><strong>운영 서버:</strong> OCI VM.Standard.E2.1.Micro(1 OCPU, 메모리 1GB). pm2 설정은 <code>ecosystem.config.js</code>(프로세스 1개, V8 힙 256MB, 400MB 넘으면 재시작). 처음 한 번 <code>pm2 delete quiz-app &amp;&amp; pm2 start ecosystem.config.js &amp;&amp; pm2 save</code>가 필요하다. 시험 세션이 프로세스 메모리에 있으므로 cluster 모드(프로세스 여러 개)는 쓰지 않는다.</div></li></ul>
 </div>
 </section>
@@ -468,6 +470,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <tr class="u"><td><code>e9f35c7</code></td><td>정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거</td></tr>
 <tr class="u"><td><code>59aa2c5</code></td><td><code>html, body</code> 폭 지정. <code>body</code>가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인</td></tr>
 <tr class="u"><td>2026-11-13</td><td>분석 탭 오답 노트, 이력 &quot;틀린 문제만 보기&quot; 필터, My 탭 보기 표시와 정답·해설 보완, <code>CLAUDE.html</code> 변환기와 훅 (커밋 &quot;오답 노트·이력 필터·My 탭 정답 표시 추가&quot;)</td></tr>
+<tr class="u"><td>2026-11-16 (장애)</td><td>00:59 UTC부터 앱 크래시 반복. 원인: 저장소의 <code>better-sqlite3</code> 13.0.3(Node 22+ 전용)과 서버 Node 20. 10-23부터 서버는 로컬에서 11.x로 바꿔 둔 <code>package.json</code> 때문에 <code>git pull</code>이 실패해 옛 코드에 머물러 있었고(배포는 실패를 무시해 &quot;성공&quot;으로 표시), 배포를 <code>reset --hard</code>로 바꾸면서 13.0.3이 설치됐다. <code>^12.11.1</code>(Node 20~26)로 내리고 배포 상태 확인 추가</td></tr>
 <tr class="u"><td>2026-11-16 (4차)</td><td>쓰지 않는 <code>sqlite3</code> 패키지 제거, 배포 때 pm2 로그 정리 설정. 성능: 문제 JSON을 요청마다 읽던 것을 메모리 캐시로(세션이 문항 사본을 들고 있어 순차 풀이 세션 600개에 1.1GB → 0.1GB), 세션 주기 정리, 정적 파일 gzip·캐시 헤더, 랜덤 중복 판별 키 캐시, SQLite <code>synchronous=NORMAL</code>. 로컬 측정: 회차 출제 75→829 req/s, 랜덤 59→1,007 req/s, 첫 방문 전송 203→48KB. 관리자 화면을 별도 포트(127.0.0.1:3100)로 분리</td></tr>
 <tr class="u"><td>2026-11-16 (3차)</td><td>관리자 화면 대시보드형 개편(왼쪽 메뉴/하단 탭, 앱과 같은 남색 헤더·로고, 카드 아이콘과 어제 대비 증감, 기간 선택 하나로 통합, 시험 통계 표 3개를 전환 탭으로 묶음)</td></tr>
 <tr class="u"><td>2026-11-16 (2차)</td><td>개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트</td></tr>
