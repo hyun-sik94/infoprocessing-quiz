@@ -51,6 +51,12 @@ db.exec(`
         active INTEGER NOT NULL DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS admin_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 `);
 
 // 제보 처리 상태(관리자 화면). 기존 제보는 'open'(미처리)으로 시작한다. 기존 행의 내용은 바꾸지 않는다.
@@ -547,32 +553,79 @@ app.get('/api/notice', (req, res) => {
 });
 
 // 10. 관리자 API (/api/admin/*)
-// 비밀번호는 코드에 두지 않고 환경변수 ADMIN_PASSWORD로 받는다. 미설정이면 관리자 API는 비활성화된다.
-// 헤더(x-admin-key)로만 받는다. 주소(?key=)는 접속 기록과 브라우저 기록에 남으므로 받지 않는다.
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+// 비밀번호 우선순위: 관리자 화면에서 바꾼 비밀번호(DB admin_settings, scrypt 해시) → 환경변수 ADMIN_PASSWORD → 초기 비밀번호.
+// 저장소가 공개라 초기 비밀번호는 해시만 둔다. 초기 비밀번호로 로그인하면 바꾸기 전까지 다른 관리자 기능을 막는다(2026-11-16 사용자 결정).
+// 비밀번호를 잊으면 서버에서 node scripts/reset-admin-password.js 로 저장된 비밀번호를 지운다(초기 비밀번호로 돌아감).
+// 비밀번호는 헤더(x-admin-key)로만 받는다. 주소(?key=)는 접속 기록과 브라우저 기록에 남으므로 받지 않는다.
+const ADMIN_PASSWORD_ENV = process.env.ADMIN_PASSWORD || "";
+const DEFAULT_ADMIN_PASSWORD_HASH = "scrypt$16384$8$1$1dfdb633a4867edea73e1e456ce18c83$fc37a5c56c1649ee3467790f9654710985ac35f08b5ec5e8ebf873a9b68c4ffb4c7f62025c8caa6d654aea69935d1785fd58611bb4cd142e6988751b08a4e2b6";
+const ADMIN_PASSWORD_MIN_LENGTH = 8;
+const ADMIN_PASSWORD_MAX_LENGTH = 128;
 
 function sha256(text) {
     return crypto.createHash('sha256').update(String(text), 'utf8').digest();
 }
 
-const ADMIN_PASSWORD_HASH = ADMIN_PASSWORD ? sha256(ADMIN_PASSWORD) : null;
+function hashPassword(password) {
+    const N = 16384, r = 8, p = 1;
+    const salt = crypto.randomBytes(16);
+    const hash = crypto.scryptSync(String(password), salt, 64, { N, r, p });
+    return `scrypt$${N}$${r}$${p}$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
 
-// 길이가 달라도 같은 시간이 걸리도록 해시끼리 비교한다
-function matchesAdminPassword(candidate) {
-    if (!ADMIN_PASSWORD_HASH || typeof candidate !== 'string' || !candidate) return false;
-    return crypto.timingSafeEqual(sha256(candidate), ADMIN_PASSWORD_HASH);
+function verifyPasswordHash(password, stored) {
+    const parts = String(stored || '').split('$');
+    if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
+    const [, N, r, p, saltHex, hashHex] = parts;
+    const expected = Buffer.from(hashHex, 'hex');
+    let actual;
+    try {
+        actual = crypto.scryptSync(String(password), Buffer.from(saltHex, 'hex'), expected.length, { N: Number(N), r: Number(r), p: Number(p) });
+    } catch (e) {
+        return false;
+    }
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+// 지금 유효한 비밀번호 정보
+function currentAdminCredential() {
+    const row = db.prepare("SELECT value, datetime(updated_at, '+9 hours') AS kst_time FROM admin_settings WHERE key = 'password_hash'").get();
+    if (row) return { source: 'db', hash: row.value, updatedAt: row.kst_time };
+    if (ADMIN_PASSWORD_ENV) return { source: 'env', hash: null, updatedAt: null };
+    return { source: 'default', hash: DEFAULT_ADMIN_PASSWORD_HASH, updatedAt: null };
+}
+
+// 관리자 화면은 요청마다 비밀번호를 보낸다. 매번 scrypt를 다시 계산하지 않도록
+// 마지막으로 맞았던 값의 SHA-256만 기억한다(비밀번호가 바뀌면 무효).
+let verifiedPasswordCache = null;
+
+function matchesAdminPassword(candidate, cred) {
+    if (typeof candidate !== 'string' || !candidate || candidate.length > ADMIN_PASSWORD_MAX_LENGTH) return false;
+    const digest = sha256(candidate);
+    const credentialKey = `${cred.source}:${cred.hash || ''}`;
+    if (verifiedPasswordCache && verifiedPasswordCache.credentialKey === credentialKey &&
+        crypto.timingSafeEqual(verifiedPasswordCache.digest, digest)) {
+        return true;
+    }
+    const ok = cred.source === 'env'
+        ? crypto.timingSafeEqual(digest, sha256(ADMIN_PASSWORD_ENV))
+        : verifyPasswordHash(candidate, cred.hash);
+    if (ok) verifiedPasswordCache = { credentialKey, digest };
+    return ok;
 }
 
 // 한글처럼 헤더에 그대로 넣을 수 없는 비밀번호를 위해 관리자 화면은 encodeURIComponent로 보낸다.
-// 원문과 디코딩한 값을 모두 비교한다.
-function isAdminAuthorized(req) {
+// 디코딩한 값을 먼저, 그다음 원문을 비교한다.
+function adminKeyCandidates(req) {
     const raw = req.headers['x-admin-key'];
-    if (typeof raw !== 'string' || !raw) return false;
-    if (matchesAdminPassword(raw)) return true;
+    if (typeof raw !== 'string' || !raw) return [];
     let decoded = raw;
-    try { decoded = decodeURIComponent(raw); } catch (e) { return false; }
-    return decoded !== raw && matchesAdminPassword(decoded);
+    try { decoded = decodeURIComponent(raw); } catch (e) { return [raw]; }
+    return decoded !== raw ? [decoded, raw] : [raw];
 }
+
+// 초기 비밀번호로 로그인한 상태에서도 쓸 수 있는 API
+const ADMIN_ROUTES_BEFORE_PASSWORD_CHANGE = new Set(['GET /auth-status', 'POST /password']);
 
 app.use('/api/admin', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -580,17 +633,96 @@ app.use('/api/admin', (req, res, next) => {
     if (adminFailLimiter.isBlocked(ip)) {
         return rejectTooMany(res, adminFailLimiter, ip, "인증 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
     }
-    if (!isAdminAuthorized(req)) {
+    const cred = currentAdminCredential();
+    if (!adminKeyCandidates(req).some(c => matchesAdminPassword(c, cred))) {
         adminFailLimiter.hit(ip);
         return res.status(401).json({ error: "관리자 인증 실패" });
     }
     adminFailLimiter.reset(ip);
+    req.adminCredential = cred;
+    if (cred.source === 'default' && !ADMIN_ROUTES_BEFORE_PASSWORD_CHANGE.has(`${req.method} ${req.path}`)) {
+        return res.status(403).json({ error: "초기 비밀번호를 먼저 바꿔 주세요.", mustChangePassword: true });
+    }
     next();
 });
+
+// 10-0. 비밀번호 상태와 변경
+app.get('/api/admin/auth-status', (req, res) => {
+    const cred = req.adminCredential;
+    res.json({ mustChangePassword: cred.source === 'default', source: cred.source, updatedAt: cred.updatedAt });
+});
+
+app.post('/api/admin/password', (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+        const cred = req.adminCredential;
+        if (typeof currentPassword !== 'string' || !matchesAdminPassword(currentPassword, cred)) {
+            adminFailLimiter.hit(getClientIp(req));
+            return res.status(400).json({ error: "현재 비밀번호가 맞지 않습니다." });
+        }
+        if (typeof newPassword !== 'string' || newPassword.length < ADMIN_PASSWORD_MIN_LENGTH || newPassword.length > ADMIN_PASSWORD_MAX_LENGTH) {
+            return res.status(400).json({ error: `새 비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}~${ADMIN_PASSWORD_MAX_LENGTH}자로 정해 주세요.` });
+        }
+        if (verifyPasswordHash(newPassword, DEFAULT_ADMIN_PASSWORD_HASH)) {
+            return res.status(400).json({ error: "초기 비밀번호는 다시 쓸 수 없습니다." });
+        }
+        if (newPassword === currentPassword) {
+            return res.status(400).json({ error: "현재 비밀번호와 다른 비밀번호로 정해 주세요." });
+        }
+        db.prepare(`
+            INSERT INTO admin_settings (key, value, updated_at) VALUES ('password_hash', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        `).run(hashPassword(newPassword));
+        verifiedPasswordCache = null;
+        res.json({ success: true });
+    } catch (e) {
+        console.error("관리자 비밀번호 변경 오류:", e);
+        res.status(500).json({ error: "비밀번호 변경 실패" });
+    }
+});
+
+// 개요 화면의 시험 필터 (통합이면 null)
+const EXAM_FILTERS = {
+    'qnet-written': { cert: 'qnet', mode: 'written' },
+    'qnet-practical': { cert: 'qnet', mode: 'practical' },
+    'net2-written': { cert: 'net2', mode: 'written' }
+};
+const EXAM_FILTER_SQL = "json_valid(detail) AND json_extract(detail, '$.cert') = ? AND json_extract(detail, '$.mode') = ?";
+
+function getExamFilter(req) {
+    return EXAM_FILTERS[req.query.exam] || null;
+}
 
 // 10-1. 오늘 통계
 app.get('/api/admin/stats', (req, res) => {
     try {
+        // 시험 하나를 고른 경우: 그 시험의 시작·제출 로그만 센다
+        const filter = getExamFilter(req);
+        if (filter) {
+            const todayStart = kstDateString(Date.now()) + ' 00:00:00';
+            const today = db.prepare(`
+                SELECT COUNT(DISTINCT fingerprint) AS examUsers,
+                       SUM(action = 'START_EXAM') AS starts,
+                       SUM(action = 'SUBMIT_EXAM') AS submits,
+                       AVG(CASE WHEN action = 'SUBMIT_EXAM' THEN json_extract(detail, '$.score') END) AS avgScore
+                FROM activity_logs
+                WHERE action IN ('START_EXAM', 'SUBMIT_EXAM') AND created_at >= datetime(?, '-9 hours') AND ${EXAM_FILTER_SQL}
+            `).get(todayStart, filter.cert, filter.mode);
+            const total = db.prepare(`
+                SELECT COUNT(DISTINCT fingerprint) AS cnt
+                FROM activity_logs
+                WHERE action IN ('START_EXAM', 'SUBMIT_EXAM') AND ${EXAM_FILTER_SQL}
+            `).get(filter.cert, filter.mode);
+            return res.json({
+                exam: req.query.exam,
+                todayExamUsers: today.examUsers || 0,
+                todayStarts: today.starts || 0,
+                todaySubmits: today.submits || 0,
+                todayAvgScore: today.avgScore === null ? null : Math.round(today.avgScore * 10) / 10,
+                totalExamUsers: total.cnt || 0
+            });
+        }
+
         const todayDauRow = db.prepare(`
             SELECT COUNT(DISTINCT fingerprint) AS cnt
             FROM activity_logs
@@ -684,6 +816,11 @@ app.get('/api/admin/trends', (req, res) => {
         const dates = [];
         for (let i = days - 1; i >= 0; i--) dates.push(kstDateString(now - i * 86400000));
 
+        // 시험을 고르면 그 시험의 시작·제출 로그만 센다(users = 응시자 수)
+        const filter = getExamFilter(req);
+        const filterSql = filter ? `AND action IN ('START_EXAM', 'SUBMIT_EXAM') AND ${EXAM_FILTER_SQL}` : '';
+        const params = [dates[0] + ' 00:00:00'].concat(filter ? [filter.cert, filter.mode] : []);
+
         // 한국 시간 첫날 0시를 UTC로 바꿔 비교한다(created_at 인덱스 사용)
         const rows = db.prepare(`
             SELECT date(created_at, '+9 hours') AS d,
@@ -692,9 +829,9 @@ app.get('/api/admin/trends', (req, res) => {
                    SUM(action = 'START_EXAM') AS starts,
                    SUM(action = 'SUBMIT_EXAM') AS submits
             FROM activity_logs
-            WHERE created_at >= datetime(?, '-9 hours')
+            WHERE created_at >= datetime(?, '-9 hours') ${filterSql}
             GROUP BY d
-        `).all(dates[0] + ' 00:00:00');
+        `).all(...params);
 
         const byDate = new Map(rows.map(r => [r.d, r]));
         res.json({
@@ -729,6 +866,9 @@ app.get('/api/admin/content', (req, res) => {
     try {
         const days = clampInt(req.query.days, 1, 365, 30);
         const since = kstDateString(Date.now() - (days - 1) * 86400000) + ' 00:00:00';
+        const filter = getExamFilter(req);
+        const filterSql = filter ? `AND ${EXAM_FILTER_SQL}` : '';
+        const params = [since].concat(filter ? [filter.cert, filter.mode] : []);
 
         const startRows = db.prepare(`
             SELECT json_extract(detail, '$.cert') AS cert,
@@ -736,9 +876,9 @@ app.get('/api/admin/content', (req, res) => {
                    json_extract(detail, '$.year') AS year,
                    COUNT(*) AS cnt
             FROM activity_logs
-            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail)
+            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail) ${filterSql}
             GROUP BY cert, mode, year
-        `).all(since);
+        `).all(...params);
 
         const submitRows = db.prepare(`
             SELECT json_extract(detail, '$.cert') AS cert,
@@ -749,15 +889,30 @@ app.get('/api/admin/content', (req, res) => {
                    COUNT(json_extract(detail, '$.score')) AS scoreCnt,
                    SUM(json_extract(detail, '$.isPassed') = 1) AS passed
             FROM activity_logs
-            WHERE action = 'SUBMIT_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail)
+            WHERE action = 'SUBMIT_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail) ${filterSql}
             GROUP BY cert, mode, year
-        `).all(since);
+        `).all(...params);
 
         const usersRow = db.prepare(`
             SELECT COUNT(DISTINCT fingerprint) AS cnt
             FROM activity_logs
-            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours')
-        `).get(since);
+            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours') ${filter ? `AND ${EXAM_FILTER_SQL}` : ''}
+        `).get(...params);
+
+        // 과목별 정답률: 제출 로그의 subjects { "과목명": [맞힌 수, 문항 수] } (2026-11-16 이후 필기 제출부터 기록)
+        const subjectRows = db.prepare(`
+            SELECT json_extract(l.detail, '$.cert') AS cert,
+                   json_extract(l.detail, '$.mode') AS mode,
+                   j.key AS subject,
+                   COUNT(*) AS submits,
+                   SUM(json_extract(j.value, '$[0]')) AS correct,
+                   SUM(json_extract(j.value, '$[1]')) AS total
+            FROM activity_logs AS l, json_each(l.detail, '$.subjects') AS j
+            WHERE l.action = 'SUBMIT_EXAM' AND l.created_at >= datetime(?, '-9 hours') AND json_valid(l.detail)
+                  ${filter ? "AND json_extract(l.detail, '$.cert') = ? AND json_extract(l.detail, '$.mode') = ?" : ''}
+            GROUP BY cert, mode, subject
+            ORDER BY cert, mode, subject
+        `).all(...params);
 
         const emptyBucket = () => ({ starts: 0, submits: 0, scoreSum: 0, scoreCnt: 0, passed: 0 });
         const byCertMode = new Map();
@@ -804,7 +959,16 @@ app.get('/api/admin/content', (req, res) => {
             examUsers: usersRow.cnt,
             byCertMode: [...byCertMode.values()].map(finish).sort(byStartsDesc),
             byKind: [...byKind.values()].map(finish).sort(byStartsDesc),
-            topRounds: [...byRound.values()].map(finish).sort(byStartsDesc).slice(0, 15)
+            topRounds: [...byRound.values()].map(finish).sort(byStartsDesc).slice(0, 15),
+            subjects: subjectRows.map(r => ({
+                cert: r.cert || null,
+                mode: r.mode || null,
+                subject: r.subject,
+                submits: r.submits,
+                correct: r.correct || 0,
+                total: r.total || 0,
+                rate: r.total > 0 ? Math.round(((r.correct || 0) / r.total) * 1000) / 10 : null
+            }))
         });
     } catch (e) {
         console.error("관리자 콘텐츠 통계 오류:", e);

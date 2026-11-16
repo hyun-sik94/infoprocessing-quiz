@@ -2767,6 +2767,22 @@ function moveStep(dir) {
     renderSingleQuestion();
 }
 
+// 관리자 화면의 과목별 정답률용: { "과목명": [맞힌 수, 문항 수] }. 과목이 없는 실기는 남기지 않는다.
+function summarizeSubjectsForLog(reviewData) {
+    const out = {};
+    (reviewData || []).forEach(r => {
+        if (!r || !r.subject) return;
+        const key = String(r.subject).slice(0, 40);
+        if (!out[key]) {
+            if (Object.keys(out).length >= 10) return;
+            out[key] = [0, 0];
+        }
+        if (r.isRight) out[key][0]++;
+        out[key][1]++;
+    });
+    return Object.keys(out).length ? out : undefined;
+}
+
 async function submitQuizAnswers() {
     try {
         const res = await fetch(getApiBase() + '/submit', {
@@ -2785,7 +2801,7 @@ async function submitQuizAnswers() {
         if (activeSessionYear === 'sequential') localStorage.removeItem(getSeqSaveKey());
         if (isRoundYear(activeSessionYear)) clearRoundProgress(activeSessionType || currentAppMode, activeSessionYear);
         saveHistoryToLocal(result);
-        logUserAction("SUBMIT_EXAM", { cert: currentCertType, mode: activeSessionType, year: activeSessionYear, score: result.score, isPassed: result.isPassed });
+        logUserAction("SUBMIT_EXAM", { cert: currentCertType, mode: activeSessionType, year: activeSessionYear, score: result.score, isPassed: result.isPassed, subjects: summarizeSubjectsForLog(result.reviewData) });
         renderReviewResult(result);
     } catch (e) {
         console.error("제출 오류:", e);

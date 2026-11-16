@@ -254,6 +254,15 @@
         .kv dt { color: var(--muted); }
         .kv dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
         .link-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; text-decoration: underline; }
+
+        .exam-bar { margin-bottom: 12px; }
+        .exam-bar .note:empty { display: none; }
+        .pw-form { display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
+        .pw-form input { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--sub); min-width: 0; }
+        .rate-cell { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+        .rate-track { flex: 1; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; min-width: 50px; }
+        .rate-fill { display: block; height: 100%; border-radius: 4px; background: var(--chart-bar); }
+        .rate-num { font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -274,7 +283,20 @@
             <button type="submit" class="btn primary" id="login-btn">로그인</button>
         </form>
         <p id="login-msg" class="msg error" role="alert"></p>
-        <p class="note">서버에 ADMIN_PASSWORD 환경변수가 설정되어 있어야 로그인할 수 있습니다. 비밀번호는 이 탭을 닫으면 지워집니다.</p>
+        <p class="note">비밀번호는 이 탭을 닫으면 지워집니다. 15분 안에 10번 틀리면 15분 동안 로그인할 수 없습니다.</p>
+    </section>
+
+    <section id="pw-view" class="card login" hidden>
+        <h2>새 비밀번호 정하기</h2>
+        <p class="note">초기 비밀번호로 로그인했습니다. 초기 비밀번호는 공개 저장소에서 알 수 있으므로, 새 비밀번호로 바꿔야 관리자 기능을 쓸 수 있습니다.</p>
+        <form id="pw-force-form" novalidate>
+            <label for="pw-force-new">새 비밀번호 (8자 이상)</label>
+            <input id="pw-force-new" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+            <label for="pw-force-confirm">새 비밀번호 확인</label>
+            <input id="pw-force-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+            <button type="submit" class="btn primary">바꾸고 시작하기</button>
+        </form>
+        <p id="pw-force-msg" class="msg error" role="alert"></p>
     </section>
 
     <div id="app-view" hidden>
@@ -288,6 +310,15 @@
 
         <!-- 개요 -->
         <section data-panel="overview">
+            <div class="exam-bar">
+                <div class="chips" id="exam-filter" role="group" aria-label="시험 선택">
+                    <button type="button" class="chip active" data-exam="">통합</button>
+                    <button type="button" class="chip" data-exam="qnet-written">정처기 필기</button>
+                    <button type="button" class="chip" data-exam="qnet-practical">정처기 실기</button>
+                    <button type="button" class="chip" data-exam="net2-written">네트워크관리사 필기</button>
+                </div>
+                <p class="note" id="exam-filter-note"></p>
+            </div>
             <p class="msg error" id="overview-msg" role="alert"></p>
             <div class="tiles" id="stat-tiles"></div>
 
@@ -302,7 +333,7 @@
                 </div>
                 <div class="chart-grid">
                     <div>
-                        <div class="chart-title">일별 방문자</div>
+                        <div class="chart-title" id="chart-users-title">일별 방문자</div>
                         <div class="chart-sub" id="chart-users-sub"></div>
                         <div class="chart" id="chart-users"></div>
                     </div>
@@ -316,10 +347,10 @@
                     <summary>표로 보기</summary>
                     <div class="table-wrap" id="trend-table"></div>
                 </details>
-                <p class="note">한국 시간 기준. 방문자는 하루 동안 활동한 기기 수입니다.</p>
+                <p class="note" id="trend-note">한국 시간 기준. 방문자는 하루 동안 활동한 기기 수입니다.</p>
             </div>
 
-            <div class="card">
+            <div class="card" id="feature-card">
                 <h2>오늘 기능별 사용</h2>
                 <div class="table-wrap" id="feature-table"></div>
             </div>
@@ -340,7 +371,9 @@
                 <div class="table-wrap" id="content-kind"></div>
                 <h3>많이 푼 회차 (상위 15)</h3>
                 <div class="table-wrap" id="content-rounds"></div>
-                <p class="note">시험 시작·제출 기록 기준. 자격증과 회차 정보는 이번 업데이트 이후 기록부터 남으므로, 그 전 기록은 "미상"으로 집계됩니다.</p>
+                <h3>과목별 정답률</h3>
+                <div class="table-wrap" id="content-subjects"></div>
+                <p class="note">시험 시작·제출 기록 기준. 자격증·회차 정보는 2026-11-16 배포 이후, 과목별 정답 수는 그다음 배포 이후 필기 제출부터 기록되므로 그 전 기록은 "미상"이거나 집계에 빠집니다. 과목별 정답률은 안 푼 문항을 오답으로 셉니다.</p>
             </div>
         </section>
 
@@ -422,6 +455,21 @@
                 <dl class="kv" id="server-info"></dl>
             </div>
             <div class="card">
+                <h2>관리자 비밀번호 변경</h2>
+                <p class="note" id="pw-source"></p>
+                <form id="pw-change-form" class="pw-form" novalidate>
+                    <label for="pw-current">현재 비밀번호</label>
+                    <input id="pw-current" type="password" autocomplete="current-password" maxlength="128" required>
+                    <label for="pw-new">새 비밀번호 (8자 이상)</label>
+                    <input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                    <label for="pw-confirm">새 비밀번호 확인</label>
+                    <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                    <button type="submit" class="btn primary">비밀번호 변경</button>
+                </form>
+                <p class="msg" id="pw-change-msg" role="alert"></p>
+                <p class="note">바꾸면 다른 기기·탭에서는 새 비밀번호로 다시 로그인해야 합니다. 잊어버렸다면 서버에서 <span class="mono">node scripts/reset-admin-password.js</span>를 실행하면 초기 비밀번호로 돌아갑니다.</p>
+            </div>
+            <div class="card">
                 <h2>오래된 활동 로그 정리</h2>
                 <div class="row">
                     <label for="cleanup-days">보관 기간</label>
@@ -463,6 +511,8 @@
     let currentTab = "overview";
     let trendDays = 7;
     let contentDays = 30;
+    let examFilter = ""; // "" = 통합, 그 외 qnet-written / qnet-practical / net2-written
+    const EXAM_LABELS = { "qnet-written": "정처기 필기", "qnet-practical": "정처기 실기", "net2-written": "네트워크관리사 필기" };
     let fbPage = 1;
     let latestRecentUsers = [];
     let cleanupCheckedDays = null;
@@ -516,8 +566,12 @@
         }
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
-            showLogin("비밀번호가 맞지 않거나 서버에 ADMIN_PASSWORD가 설정되지 않았습니다.");
+            showLogin("비밀번호가 맞지 않습니다.");
             throw new ApiError(401, "인증 실패");
+        }
+        if (res.status === 403 && data.mustChangePassword) {
+            showPasswordView();
+            throw new ApiError(401, "비밀번호 변경 필요"); // 화면 전환으로 처리했으니 호출한 쪽은 오류 문구를 띄우지 않는다
         }
         if (res.status === 429) {
             const sec = parseInt(res.headers.get("Retry-After") || "0", 10);
@@ -533,6 +587,7 @@
         adminKey = "";
         saveKey("");
         $("app-view").hidden = true;
+        $("pw-view").hidden = true;
         $("top-actions").hidden = true;
         $("login-view").hidden = false;
         setMsg("login-msg", message || "", "error");
@@ -540,26 +595,79 @@
         $("login-pw").focus();
     }
 
+    // 초기 비밀번호로 로그인한 경우: 새 비밀번호를 정하기 전까지 이 화면만 쓸 수 있다
+    function showPasswordView() {
+        $("login-view").hidden = true;
+        $("app-view").hidden = true;
+        $("pw-view").hidden = false;
+        $("top-actions").hidden = false;
+        $("refresh-btn").hidden = true;
+        setMsg("pw-force-msg", "");
+        $("pw-force-new").focus();
+    }
+
     function showApp() {
         $("login-view").hidden = true;
+        $("pw-view").hidden = true;
         $("app-view").hidden = false;
         $("top-actions").hidden = false;
+        $("refresh-btn").hidden = false;
         switchTab(currentTab);
     }
 
     async function tryLogin(key) {
         adminKey = key;
         try {
-            const stats = await api("/api/admin/stats");
+            const status = await api("/api/admin/auth-status");
             saveKey(key);
-            showApp();
-            renderStats(stats);
+            if (status.mustChangePassword) showPasswordView();
+            else showApp();
             return true;
         } catch (e) {
             if (e.status !== 401) showLogin(e.message);
             return false;
         }
     }
+
+    // 새 비밀번호 검사(서버와 같은 기준) 후 변경 요청
+    async function changePassword(currentPassword, newPassword, confirmPassword) {
+        if (newPassword.length < 8) throw new ApiError(400, "새 비밀번호는 8자 이상으로 정해 주세요.");
+        if (newPassword !== confirmPassword) throw new ApiError(400, "새 비밀번호와 확인이 다릅니다.");
+        await api("/api/admin/password", { method: "POST", body: { currentPassword, newPassword } });
+        adminKey = newPassword;
+        saveKey(newPassword);
+    }
+
+    $("pw-force-form").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const btn = ev.target.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+            await changePassword(adminKey, $("pw-force-new").value, $("pw-force-confirm").value);
+            $("pw-force-new").value = "";
+            $("pw-force-confirm").value = "";
+            showApp();
+        } catch (e) {
+            if (e.status !== 401) setMsg("pw-force-msg", e.message, "error");
+        }
+        btn.disabled = false;
+    });
+
+    $("pw-change-form").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const btn = ev.target.querySelector("button[type=submit]");
+        btn.disabled = true;
+        setMsg("pw-change-msg", "");
+        try {
+            await changePassword($("pw-current").value, $("pw-new").value, $("pw-confirm").value);
+            ["pw-current", "pw-new", "pw-confirm"].forEach(id => { $(id).value = ""; });
+            setMsg("pw-change-msg", "비밀번호를 바꿨습니다.", "ok");
+            loadServer();
+        } catch (e) {
+            if (e.status !== 401) setMsg("pw-change-msg", e.message, "error");
+        }
+        btn.disabled = false;
+    });
 
     $("login-form").addEventListener("submit", async (ev) => {
         ev.preventDefault();
@@ -615,15 +723,36 @@
         latestRecentUsers = stats.recentUsers || [];
     }
 
+    // 시험 하나를 골랐을 때의 타일 (그 시험의 시작·제출 로그 기준)
+    function renderExamStats(stats) {
+        $("stat-tiles").innerHTML = [
+            ["오늘 응시자", fmt(stats.todayExamUsers)],
+            ["오늘 시험 시작", fmt(stats.todayStarts)],
+            ["오늘 시험 제출", fmt(stats.todaySubmits)],
+            ["오늘 평균 점수", stats.todayAvgScore === null ? "-" : fmt(stats.todayAvgScore) + "점"]
+        ].map(([label, value]) => `
+            <div class="tile"><div class="tile-label">${escapeHtml(label)}</div><div class="tile-value">${escapeHtml(value)}</div></div>
+        `).join("");
+        $("exam-filter-note").textContent = `${EXAM_LABELS[examFilter]}: 시험을 시작·제출한 기록만 셉니다. 누적 응시자 ${fmt(stats.totalExamUsers)}명. 자격증 정보는 2026-11-16 배포 이후 기록부터 남습니다.`;
+    }
+
+    const examParam = () => (examFilter ? `&exam=${encodeURIComponent(examFilter)}` : "");
+
     async function loadOverview() {
         setMsg("overview-msg", "");
         try {
             const [stats, trends, content] = await Promise.all([
-                api("/api/admin/stats"),
-                api(`/api/admin/trends?days=${trendDays}`),
-                api(`/api/admin/content?days=${contentDays}`)
+                api(`/api/admin/stats${examFilter ? `?exam=${encodeURIComponent(examFilter)}` : ""}`),
+                api(`/api/admin/trends?days=${trendDays}${examParam()}`),
+                api(`/api/admin/content?days=${contentDays}${examParam()}`)
             ]);
-            renderStats(stats);
+            if (examFilter) {
+                renderExamStats(stats);
+            } else {
+                renderStats(stats);
+                $("exam-filter-note").textContent = "";
+            }
+            $("feature-card").hidden = !!examFilter;
             renderTrends(trends);
             renderContent(content);
         } catch (e) {
@@ -631,6 +760,14 @@
         }
         refreshOpenBadge();
     }
+
+    $("exam-filter").querySelectorAll(".chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            $("exam-filter").querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c === chip));
+            examFilter = chip.dataset.exam || "";
+            loadOverview();
+        });
+    });
 
     function bindDayChips(groupId, onPick) {
         $(groupId).querySelectorAll(".chip").forEach(chip => {
@@ -643,12 +780,12 @@
 
     bindDayChips("trend-days", async (days) => {
         trendDays = days;
-        try { renderTrends(await api(`/api/admin/trends?days=${days}`)); }
+        try { renderTrends(await api(`/api/admin/trends?days=${days}${examParam()}`)); }
         catch (e) { if (e.status !== 401) setMsg("overview-msg", e.message, "error"); }
     });
     bindDayChips("content-days", async (days) => {
         contentDays = days;
-        try { renderContent(await api(`/api/admin/content?days=${days}`)); }
+        try { renderContent(await api(`/api/admin/content?days=${days}${examParam()}`)); }
         catch (e) { if (e.status !== 401) setMsg("overview-msg", e.message, "error"); }
     });
 
@@ -747,7 +884,12 @@
 
     function renderTrends(data) {
         const items = data.items || [];
-        charts["chart-users"] = { items, key: "users", unit: "명", title: "일별 방문자" };
+        const usersTitle = examFilter ? "일별 응시자" : "일별 방문자";
+        $("chart-users-title").textContent = usersTitle;
+        $("trend-note").textContent = examFilter
+            ? `한국 시간 기준. 응시자는 하루 동안 ${EXAM_LABELS[examFilter]} 시험을 시작하거나 제출한 기기 수입니다.`
+            : "한국 시간 기준. 방문자는 하루 동안 활동한 기기 수입니다.";
+        charts["chart-users"] = { items, key: "users", unit: "명", title: usersTitle };
         charts["chart-submits"] = { items, key: "submits", unit: "회", title: "일별 시험 제출" };
         drawChart("chart-users");
         drawChart("chart-submits");
@@ -760,7 +902,7 @@
         $("chart-submits-sub").textContent = `합계 ${fmt(totalSubmits)}회 · 일평균 ${fmt(avg("submits"))}회`;
 
         $("trend-table").innerHTML = `
-            <table><thead><tr><th>날짜</th><th class="num">방문자</th><th class="num">활동</th><th class="num">시험 시작</th><th class="num">시험 제출</th></tr></thead>
+            <table><thead><tr><th>날짜</th><th class="num">${examFilter ? "응시자" : "방문자"}</th><th class="num">${examFilter ? "기록" : "활동"}</th><th class="num">시험 시작</th><th class="num">시험 제출</th></tr></thead>
             <tbody>${items.slice().reverse().map(d => `
                 <tr><td>${escapeHtml(d.date)}</td><td class="num">${fmt(d.users)}</td><td class="num">${fmt(d.actions)}</td><td class="num">${fmt(d.starts)}</td><td class="num">${fmt(d.submits)}</td></tr>
             `).join("")}</tbody></table>`;
@@ -791,6 +933,34 @@
             <tbody>${(data.topRounds || []).map(r => `
                 <tr><td>${escapeHtml(r.year)}</td><td>${escapeHtml(certLabel(r.cert))}</td><td>${escapeHtml(modeLabel(r.mode))}</td>${statCells(r)}</tr>
             `).join("") || emptyRow(7)}</tbody></table>`;
+        renderSubjects(data.subjects || []);
+    }
+
+    // 과목별 정답률 (통합이면 시험 열을 함께 보여 준다)
+    function renderSubjects(rows) {
+        if (examFilter === "qnet-practical") {
+            $("content-subjects").innerHTML = `<p class="note">실기는 과목 구분이 없어 과목별 정답률이 없습니다.</p>`;
+            return;
+        }
+        if (!rows.length) {
+            $("content-subjects").innerHTML = `<p class="note">아직 기록이 없습니다. 과목별 정답 수는 이번 업데이트 이후 필기 시험 제출부터 쌓입니다.</p>`;
+            return;
+        }
+        const showExam = !examFilter;
+        $("content-subjects").innerHTML = `
+            <table><thead><tr>${showExam ? "<th>시험</th>" : ""}<th>과목</th><th class="num">제출</th><th class="num">문항</th><th>정답률</th></tr></thead>
+            <tbody>${rows.map(r => {
+                const rate = (r.rate === null || r.rate === undefined) ? null : Math.max(0, Math.min(100, Number(r.rate)));
+                return `<tr>
+                    ${showExam ? `<td>${escapeHtml(certLabel(r.cert))} ${escapeHtml(modeLabel(r.mode))}</td>` : ""}
+                    <td>${escapeHtml(r.subject)}</td>
+                    <td class="num">${fmt(r.submits)}</td>
+                    <td class="num">${fmt(r.total)}</td>
+                    <td>${rate === null ? "-" : `<div class="rate-cell" title="${fmt(r.correct)} / ${fmt(r.total)}">
+                        <span class="rate-num">${fmt(rate)}%</span>
+                        <span class="rate-track"><span class="rate-fill" style="width:${rate}%"></span></span></div>`}</td>
+                </tr>`;
+            }).join("")}</tbody></table>`;
     }
 
     // ---------- 제보 ----------
@@ -1037,6 +1207,12 @@
         } catch (e) {
             if (e.status !== 401) setMsg("server-msg", e.message, "error");
         }
+        try {
+            const auth = await api("/api/admin/auth-status");
+            $("pw-source").textContent = auth.source === "db"
+                ? `현재 비밀번호: 관리자 화면에서 정한 비밀번호 (${auth.updatedAt} 변경)`
+                : "현재 비밀번호: 서버 환경변수 ADMIN_PASSWORD. 여기서 바꾸면 이후로는 바꾼 비밀번호를 씁니다.";
+        } catch (e) {}
     }
 
     $("cleanup-days").addEventListener("input", () => {

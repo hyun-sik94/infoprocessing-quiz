@@ -158,9 +158,9 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
       <div class="lead"><p>IT 자격증 스마트 CBT: 정보처리기사(필기·실기)와 네트워크관리사 2급(필기) 기출문제 풀이 웹앱.<br>Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐라 JS 단일 페이지가 풀이·채점 결과·즐겨찾기·분석을 보여준다.</p></div>
       <div class="stats">
         <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
-        <a class="stat s-issues" href="#s25"><b>15</b><span>남은 문제</span></a>
+        <a class="stat s-issues" href="#s25"><b>16</b><span>남은 문제</span></a>
         <div class="stat"><b>14</b><span>섹션</span></div>
-        <div class="stat wide"><b>2026-11-16 09:47</b><span>CLAUDE.md 마지막 수정</span></div>
+        <div class="stat wide"><b>2026-11-16 10:27</b><span>CLAUDE.md 마지막 수정</span></div>
       </div>
       <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
     </div>
@@ -175,7 +175,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <tr class="u"><td>배포</td><td><code>main</code>에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다</td></tr>
 <tr class="u"><td>문제 수</td><td>정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150</td></tr>
 <tr class="u"><td>사용자 기록</td><td>서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도)</td></tr>
-<tr class="u"><td>캐시 버전</td><td><code>public/index.html</code>의 <code>?v=YYYYMMDD_NN</code> (2026-11-16 기준 <code>20261116_01</code>)</td></tr>
+<tr class="u"><td>캐시 버전</td><td><code>public/index.html</code>의 <code>?v=YYYYMMDD_NN</code> (2026-11-16 기준 <code>20261116_02</code>)</td></tr>
 <tr class="u"><td>문서</td><td>이 파일을 고치면 <code>CLAUDE.html</code>이 자동으로 다시 만들어진다(맨 아래 &quot;문서 관리&quot;)</td></tr>
 </tbody></table></div>
 </div>
@@ -228,7 +228,10 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <pre class="u"><code>npm install        # express, cors, better-sqlite3
 node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)</code></pre>
 <ul><li class="u"><div class="li-main">접속: <code>http://localhost:3000</code></div></li>
-<li class="u"><div class="li-main"><strong>관리자 API는 환경변수 <code>ADMIN_PASSWORD</code>를 설정해야 켜진다.</strong> 미설정이면 항상 401이다. 예: PowerShell <code>$env:ADMIN_PASSWORD=&quot;새비밀번호&quot;; npm start</code></div><ul><li><div class="li-main">관리자 화면은 <code>/admin.html</code>이다. 비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.</div></li></ul></li>
+<li class="u"><div class="li-main"><strong>관리자 화면은 <code>/admin.html</code>이다.</strong> 비밀번호 우선순위: 관리자 화면에서 바꾼 비밀번호(<code>feedback.db</code>의 <code>admin_settings</code>, scrypt 해시) → 환경변수 <code>ADMIN_PASSWORD</code> → 초기 비밀번호.</div><ul><li><div class="li-main">초기 비밀번호는 사용자가 정했고(2026-11-16) 코드에는 해시만 있다. 초기 비밀번호로 로그인하면 <strong>새 비밀번호로 바꾸기 전까지 다른 관리자 API는 403</strong>이다. 비밀번호를 문서나 코드에 평문으로 적지 않는다.</div></li>
+<li><div class="li-main">관리자 화면 &quot;서버·로그&quot; 탭에서 비밀번호를 바꿀 수 있다(8~128자, 초기 비밀번호 재사용 불가). 한 번 바꾸면 환경변수는 무시된다.</div></li>
+<li><div class="li-main">잊었을 때: 서버에서 <code>node scripts/reset-admin-password.js</code> (저장된 비밀번호를 지워 환경변수 또는 초기 비밀번호로 돌아간다. 재시작 불필요).</div></li>
+<li><div class="li-main">비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.</div></li></ul></li>
 <li class="u"><div class="li-main"><code>DB_PATH</code> 환경변수로 DB 파일 위치를 바꿀 수 있다(테스트용. 운영은 기본값 <code>feedback.db</code>). 테스트 서버는 임시 폴더의 DB로 띄워 실제 <code>feedback.db</code>를 건드리지 않는다.</div></li>
 <li class="u"><div class="li-main">이미 3000 포트를 쓰는 프로세스가 있으면 <code>EADDRINUSE</code> 오류로 서버가 바로 종료된다. 다른 포트(<code>$env:PORT=3001</code>)로 켜거나 기존 프로세스를 먼저 종료한다.</div></li>
 <li class="u"><div class="li-main">세션은 서버 메모리(<code>Map</code>)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)</div></li>
@@ -252,6 +255,7 @@ data/practical.json          정처기 실기 (191문항)
 data/net2/written.json       네트워크관리사 2급 필기 (1,150문항, 23개 회차)
 feedback.db                  SQLite: 제보(feedback, 처리 상태 status·handled_at), 활동 로그(activity_logs), 공지(notices)
 scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
+scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 실행)
 .claude/settings.json        CLAUDE.md 수정 시 변환기를 실행하는 훅</code></pre>
 <ul><li class="u"><div class="li-main">서버는 <code>public/</code>만 외부에 내보낸다. <code>CLAUDE.md</code>, <code>CLAUDE.html</code>, <code>scripts/</code>는 사이트에서 열리지 않는다.</div></li>
 <li class="u"><div class="li-main">루트의 <code>GEMINI.md</code>, <code>적용된 기능.txt</code>, <code>fix.js</code>, <code>preview.html</code>, <code>sessions.json</code>, <code>server_data_bak*</code>, <code>server_js_bak_*</code>는 이전 작업의 부속·백업 파일이다. 용도를 확인하기 전에는 수정하거나 삭제하지 않는다.</div></li></ul>
@@ -270,11 +274,14 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 <ul><li class="u"><div class="li-main"><code>POST /api/feedback</code>: 메시지 2,000자 이하, <strong>IP당 10분 5건</strong>(넘으면 429). <code>POST /api/log</code>: action은 대문자·<code>_</code>만, detail은 2,000자를 넘으면 <code>{&quot;truncated&quot;:true}</code>로 저장, <strong>IP당 1분 120건</strong>.</div></li>
 <li class="u"><div class="li-main">요청 제한은 패키지 없이 서버 메모리에서 센다(재시작하면 초기화). IP는 사설망·로컬 프록시를 거친 요청만 <code>X-Forwarded-For</code>의 마지막 값을 믿고, 그 외에는 접속 주소를 쓴다.</div></li>
 <li class="u"><div class="li-main"><code>GET /api/notice</code>: 표시 중인 공지 중 가장 최근 1개(<code>no-store</code>). 앱은 헤더 아래 배너로 보여 준다.</div></li>
-<li class="u"><div class="li-main"><code>/api/admin/*</code>: 비밀번호는 <strong>헤더 <code>x-admin-key</code>로만</strong> 받는다(<code>?key=</code>는 2026-11-16에 제거). 관리자 화면은 <code>encodeURIComponent</code>로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 <code>timingSafeEqual</code>). <strong>인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429</strong>다.</div><ul><li><div class="li-main"><code>stats</code>(오늘 통계), <code>user-detail?fp=</code>, <code>trends?days=</code>(KST 일별), <code>content?days=</code>(시험 시작·제출 로그 집계), <code>server</code>(가동 시간·메모리·세션 수·문항 수·DB 크기)</div></li>
+<li class="u"><div class="li-main"><code>/api/admin/*</code>: 비밀번호는 <strong>헤더 <code>x-admin-key</code>로만</strong> 받는다(<code>?key=</code>는 2026-11-16에 제거). 관리자 화면은 <code>encodeURIComponent</code>로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 <code>timingSafeEqual</code>). <strong>인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429</strong>다.</div><ul><li><div class="li-main"><code>auth-status</code>, <code>POST password {currentPassword, newPassword}</code>: 초기 비밀번호 상태에서도 쓸 수 있는 유일한 두 API</div></li>
+<li><div class="li-main"><code>stats</code>(오늘 통계), <code>user-detail?fp=</code>, <code>trends?days=</code>(KST 일별), <code>content?days=</code>(시험 시작·제출 로그 집계, 과목별 정답률 <code>subjects</code>), <code>server</code>(가동 시간·메모리·세션 수·문항 수·DB 크기)</div></li>
+<li><div class="li-main"><code>stats</code>·<code>trends</code>·<code>content</code>는 <code>exam=qnet-written|qnet-practical|net2-written</code>으로 시험 하나만 볼 수 있다(그 시험의 시작·제출 로그만 센다. 방문자 대신 응시자). 없거나 모르는 값이면 통합.</div></li>
 <li><div class="li-main"><code>feedback</code>(목록·필터·페이지), <code>POST feedback/:id/status</code>(<code>open</code>/<code>done</code>). 제보 분류는 컬럼 없이 메시지 앞 <code>[분류]</code>에서 읽는다.</div></li>
 <li><div class="li-main"><code>notices</code> 목록·등록(300자), <code>POST notices/:id/active</code>, <code>DELETE notices/:id</code></div></li>
 <li><div class="li-main"><code>POST logs/cleanup {days, dryRun}</code>: <code>dryRun: false</code>일 때만 실제로 지운다. 보관 기간 최소 30일. 자동 정리는 없다.</div></li></ul></li>
-<li class="u"><div class="li-main">콘텐츠 통계를 위해 <code>START_EXAM</code>에 <code>cert</code>, <code>SUBMIT_EXAM</code>에 <code>cert</code>·<code>year</code>를 남긴다(2026-11-16부터). 그 전 로그는 관리자 화면에서 &quot;미상&quot;으로 집계된다.</div></li></ul>
+<li class="u"><div class="li-main">콘텐츠 통계를 위해 <code>START_EXAM</code>에 <code>cert</code>, <code>SUBMIT_EXAM</code>에 <code>cert</code>·<code>year</code>를 남긴다(2026-11-16부터). 그 전 로그는 관리자 화면에서 &quot;미상&quot;으로 집계된다.</div></li>
+<li class="u"><div class="li-main"><code>SUBMIT_EXAM</code>의 <code>subjects</code>는 <code>{ &quot;과목명&quot;: [맞힌 수, 문항 수] }</code>이다(필기만, 최대 10과목, <code>summarizeSubjectsForLog</code>). 안 푼 문항은 오답으로 센다. 이 기록이 들어간 배포 이후 제출부터 과목별 정답률이 쌓인다.</div></li></ul>
 </div>
 </section>
 
@@ -397,6 +404,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 <div class="sec-body">
 <p class="u">2026-11-13 기준. 수정 요청이 오면 아래를 참고하되, 고치기 전 반드시 재확인하고 승인받는다.</p>
 <div class="table-wrap"><table><thead><tr><th>우선</th><th>내용</th><th>비고</th></tr></thead><tbody>
+<tr class="u"><td><span class="badge b-sec">보안</span></td><td>관리자 초기 비밀번호는 공개 저장소를 본 누구나 시도할 수 있다. 운영 서버에 <code>ADMIN_PASSWORD</code>가 없으면, 배포 후 관리자가 직접 로그인해 바꾸기 전까지 다른 사람이 먼저 바꿀 수 있다(그때는 <code>scripts/reset-admin-password.js</code>로 되찾는다).</td><td>배포 직후 바로 변경 필요</td></tr>
 <tr class="u"><td><span class="badge b-feat">기능</span></td><td>즐겨찾기가 <code>text</code>만으로 같은 문제를 판단한다. <code>text</code>는 같고 보기가 다른 문항(2026년 문항 중 15개)은 다른 문제인데 ★가 함께 켜진다.</td><td><code>text</code> + 보기 비교로 바꾸는 안 제안, 승인 대기</td></tr>
 <tr class="u"><td><span class="badge b-deploy">배포</span></td><td><code>index.html</code>에 캐시 방지 헤더가 없어 배포 후에도 옛 화면을 보는 경우가 있다.</td><td><code>Cache-Control: no-cache</code> 추가 안 제안, 승인 대기</td></tr>
 <tr class="u"><td><span class="badge b-data">데이터</span></td><td>정처기 필기 <code>20210207</code>과 <code>20230107</code>은 문제·보기가 같은데 정답이 다르다(Generalization / Realization). 해설도 &quot;기출문제 답안 기준…&quot; 형태.</td><td>어느 쪽이 맞는지 검수 필요</td></tr>
@@ -419,7 +427,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 <section class="card k-normal" id="s26" data-title="보안·개인정보">
 <h2><button type="button" class="sec-toggle" aria-expanded="true">보안·개인정보<span class="chev" aria-hidden="true">▾</span></button></h2>
 <div class="sec-body">
-<ul><li class="u"><div class="li-main">비밀번호, API 키, 토큰을 코드나 커밋에 새로 넣지 않는다. 필요하면 환경변수로 받는다. (관리자 비밀번호는 <code>ADMIN_PASSWORD</code>. 이전 값은 공개 저장소 이력에 남아 있으니 쓰지 않는다.)</div></li>
+<ul><li class="u"><div class="li-main">비밀번호, API 키, 토큰을 코드나 커밋에 새로 넣지 않는다. 필요하면 환경변수로 받는다.</div><ul><li><div class="li-main">예외(2026-11-16 사용자 결정): 관리자 초기 비밀번호의 scrypt 해시. 공개 저장소라 누구나 시도할 수 있으므로 첫 로그인 때 변경을 강제한다. 예전 관리자 비밀번호는 공개 저장소 이력에 남아 있으니 쓰지 않는다.</div></li></ul></li>
 <li class="u"><div class="li-main"><code>feedback.db</code>의 제보 내용과 활동 로그(fingerprint)는 출력하거나 외부로 보내지 않는다.</div></li>
 <li class="u"><div class="li-main">저장소는 공개다. 운영 서버 주소·계정 정보는 GitHub Secrets에만 있고 문서와 코드에 적지 않는다.</div></li></ul>
 </div>
@@ -455,6 +463,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 <tr class="u"><td><code>e9f35c7</code></td><td>정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거</td></tr>
 <tr class="u"><td><code>59aa2c5</code></td><td><code>html, body</code> 폭 지정. <code>body</code>가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인</td></tr>
 <tr class="u"><td>2026-11-13</td><td>분석 탭 오답 노트, 이력 &quot;틀린 문제만 보기&quot; 필터, My 탭 보기 표시와 정답·해설 보완, <code>CLAUDE.html</code> 변환기와 훅 (커밋 &quot;오답 노트·이력 필터·My 탭 정답 표시 추가&quot;)</td></tr>
+<tr class="u"><td>2026-11-16 (2차)</td><td>개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트</td></tr>
 <tr class="u"><td>2026-11-16</td><td>탭 아이콘, 관리자 화면(<code>admin.html</code>), <code>user-detail</code> SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(<code>?key=</code> 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리</td></tr>
 </tbody></table></div>
 </div>

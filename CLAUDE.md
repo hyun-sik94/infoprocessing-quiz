@@ -12,7 +12,7 @@ Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐�
 | 배포 | `main`에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다 |
 | 문제 수 | 정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150 |
 | 사용자 기록 | 서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도) |
-| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-16 기준 `20261116_01`) |
+| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-16 기준 `20261116_02`) |
 | 문서 | 이 파일을 고치면 `CLAUDE.html`이 자동으로 다시 만들어진다(맨 아래 "문서 관리") |
 
 ## 최우선 규칙
@@ -64,8 +64,11 @@ node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)
 ```
 
 - 접속: `http://localhost:3000`
-- **관리자 API는 환경변수 `ADMIN_PASSWORD`를 설정해야 켜진다.** 미설정이면 항상 401이다. 예: PowerShell `$env:ADMIN_PASSWORD="새비밀번호"; npm start`
-  - 관리자 화면은 `/admin.html`이다. 비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.
+- **관리자 화면은 `/admin.html`이다.** 비밀번호 우선순위: 관리자 화면에서 바꾼 비밀번호(`feedback.db`의 `admin_settings`, scrypt 해시) → 환경변수 `ADMIN_PASSWORD` → 초기 비밀번호.
+  - 초기 비밀번호는 사용자가 정했고(2026-11-16) 코드에는 해시만 있다. 초기 비밀번호로 로그인하면 **새 비밀번호로 바꾸기 전까지 다른 관리자 API는 403**이다. 비밀번호를 문서나 코드에 평문으로 적지 않는다.
+  - 관리자 화면 "서버·로그" 탭에서 비밀번호를 바꿀 수 있다(8~128자, 초기 비밀번호 재사용 불가). 한 번 바꾸면 환경변수는 무시된다.
+  - 잊었을 때: 서버에서 `node scripts/reset-admin-password.js` (저장된 비밀번호를 지워 환경변수 또는 초기 비밀번호로 돌아간다. 재시작 불필요).
+  - 비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.
 - `DB_PATH` 환경변수로 DB 파일 위치를 바꿀 수 있다(테스트용. 운영은 기본값 `feedback.db`). 테스트 서버는 임시 폴더의 DB로 띄워 실제 `feedback.db`를 건드리지 않는다.
 - 이미 3000 포트를 쓰는 프로세스가 있으면 `EADDRINUSE` 오류로 서버가 바로 종료된다. 다른 포트(`$env:PORT=3001`)로 켜거나 기존 프로세스를 먼저 종료한다.
 - 세션은 서버 메모리(`Map`)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)
@@ -88,6 +91,7 @@ data/practical.json          정처기 실기 (191문항)
 data/net2/written.json       네트워크관리사 2급 필기 (1,150문항, 23개 회차)
 feedback.db                  SQLite: 제보(feedback, 처리 상태 status·handled_at), 활동 로그(activity_logs), 공지(notices)
 scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
+scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 실행)
 .claude/settings.json        CLAUDE.md 수정 시 변환기를 실행하는 훅
 ```
 
@@ -116,11 +120,14 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 - 요청 제한은 패키지 없이 서버 메모리에서 센다(재시작하면 초기화). IP는 사설망·로컬 프록시를 거친 요청만 `X-Forwarded-For`의 마지막 값을 믿고, 그 외에는 접속 주소를 쓴다.
 - `GET /api/notice`: 표시 중인 공지 중 가장 최근 1개(`no-store`). 앱은 헤더 아래 배너로 보여 준다.
 - `/api/admin/*`: 비밀번호는 **헤더 `x-admin-key`로만** 받는다(`?key=`는 2026-11-16에 제거). 관리자 화면은 `encodeURIComponent`로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 `timingSafeEqual`). **인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429**다.
-  - `stats`(오늘 통계), `user-detail?fp=`, `trends?days=`(KST 일별), `content?days=`(시험 시작·제출 로그 집계), `server`(가동 시간·메모리·세션 수·문항 수·DB 크기)
+  - `auth-status`, `POST password {currentPassword, newPassword}`: 초기 비밀번호 상태에서도 쓸 수 있는 유일한 두 API
+  - `stats`(오늘 통계), `user-detail?fp=`, `trends?days=`(KST 일별), `content?days=`(시험 시작·제출 로그 집계, 과목별 정답률 `subjects`), `server`(가동 시간·메모리·세션 수·문항 수·DB 크기)
+  - `stats`·`trends`·`content`는 `exam=qnet-written|qnet-practical|net2-written`으로 시험 하나만 볼 수 있다(그 시험의 시작·제출 로그만 센다. 방문자 대신 응시자). 없거나 모르는 값이면 통합.
   - `feedback`(목록·필터·페이지), `POST feedback/:id/status`(`open`/`done`). 제보 분류는 컬럼 없이 메시지 앞 `[분류]`에서 읽는다.
   - `notices` 목록·등록(300자), `POST notices/:id/active`, `DELETE notices/:id`
   - `POST logs/cleanup {days, dryRun}`: `dryRun: false`일 때만 실제로 지운다. 보관 기간 최소 30일. 자동 정리는 없다.
 - 콘텐츠 통계를 위해 `START_EXAM`에 `cert`, `SUBMIT_EXAM`에 `cert`·`year`를 남긴다(2026-11-16부터). 그 전 로그는 관리자 화면에서 "미상"으로 집계된다.
+- `SUBMIT_EXAM`의 `subjects`는 `{ "과목명": [맞힌 수, 문항 수] }`이다(필기만, 최대 10과목, `summarizeSubjectsForLog`). 안 푼 문항은 오답으로 센다. 이 기록이 들어간 배포 이후 제출부터 과목별 정답률이 쌓인다.
 
 ## 세션 종류별 동작
 
@@ -254,6 +261,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 
 | 우선 | 내용 | 비고 |
 |---|---|---|
+| 보안 | 관리자 초기 비밀번호는 공개 저장소를 본 누구나 시도할 수 있다. 운영 서버에 `ADMIN_PASSWORD`가 없으면, 배포 후 관리자가 직접 로그인해 바꾸기 전까지 다른 사람이 먼저 바꿀 수 있다(그때는 `scripts/reset-admin-password.js`로 되찾는다). | 배포 직후 바로 변경 필요 |
 | 기능 | 즐겨찾기가 `text`만으로 같은 문제를 판단한다. `text`는 같고 보기가 다른 문항(2026년 문항 중 15개)은 다른 문제인데 ★가 함께 켜진다. | `text` + 보기 비교로 바꾸는 안 제안, 승인 대기 |
 | 배포 | `index.html`에 캐시 방지 헤더가 없어 배포 후에도 옛 화면을 보는 경우가 있다. | `Cache-Control: no-cache` 추가 안 제안, 승인 대기 |
 | 데이터 | 정처기 필기 `20210207`과 `20230107`은 문제·보기가 같은데 정답이 다르다(Generalization / Realization). 해설도 "기출문제 답안 기준…" 형태. | 어느 쪽이 맞는지 검수 필요 |
@@ -272,7 +280,8 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 
 ## 보안·개인정보
 
-- 비밀번호, API 키, 토큰을 코드나 커밋에 새로 넣지 않는다. 필요하면 환경변수로 받는다. (관리자 비밀번호는 `ADMIN_PASSWORD`. 이전 값은 공개 저장소 이력에 남아 있으니 쓰지 않는다.)
+- 비밀번호, API 키, 토큰을 코드나 커밋에 새로 넣지 않는다. 필요하면 환경변수로 받는다.
+  - 예외(2026-11-16 사용자 결정): 관리자 초기 비밀번호의 scrypt 해시. 공개 저장소라 누구나 시도할 수 있으므로 첫 로그인 때 변경을 강제한다. 예전 관리자 비밀번호는 공개 저장소 이력에 남아 있으니 쓰지 않는다.
 - `feedback.db`의 제보 내용과 활동 로그(fingerprint)는 출력하거나 외부로 보내지 않는다.
 - 저장소는 공개다. 운영 서버 주소·계정 정보는 GitHub Secrets에만 있고 문서와 코드에 적지 않는다.
 
@@ -307,6 +316,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 | `e9f35c7` | 정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거 |
 | `59aa2c5` | `html, body` 폭 지정. `body`가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인 |
 | 2026-11-13 | 분석 탭 오답 노트, 이력 "틀린 문제만 보기" 필터, My 탭 보기 표시와 정답·해설 보완, `CLAUDE.html` 변환기와 훅 (커밋 "오답 노트·이력 필터·My 탭 정답 표시 추가") |
+| 2026-11-16 (2차) | 개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트 |
 | 2026-11-16 | 탭 아이콘, 관리자 화면(`admin.html`), `user-detail` SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(`?key=` 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리 |
 
 ## 문서 관리
