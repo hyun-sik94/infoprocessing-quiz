@@ -699,15 +699,30 @@ app.get('/api/admin/stats', (req, res) => {
         // 시험 하나를 고른 경우: 그 시험의 시작·제출 로그만 센다
         const filter = getExamFilter(req);
         if (filter) {
-            const todayStart = kstDateString(Date.now()) + ' 00:00:00';
-            const today = db.prepare(`
-                SELECT COUNT(DISTINCT fingerprint) AS examUsers,
-                       SUM(action = 'START_EXAM') AS starts,
-                       SUM(action = 'SUBMIT_EXAM') AS submits,
-                       AVG(CASE WHEN action = 'SUBMIT_EXAM' THEN json_extract(detail, '$.score') END) AS avgScore
-                FROM activity_logs
-                WHERE action IN ('START_EXAM', 'SUBMIT_EXAM') AND created_at >= datetime(?, '-9 hours') AND ${EXAM_FILTER_SQL}
-            `).get(todayStart, filter.cert, filter.mode);
+            // 한국 시간 하루 [from, to) 동안 그 시험의 응시자·시작·제출·평균 점수
+            const examDay = (from, to) => {
+                const row = db.prepare(`
+                    SELECT COUNT(DISTINCT fingerprint) AS examUsers,
+                           SUM(action = 'START_EXAM') AS starts,
+                           SUM(action = 'SUBMIT_EXAM') AS submits,
+                           AVG(CASE WHEN action = 'SUBMIT_EXAM' THEN json_extract(detail, '$.score') END) AS avgScore
+                    FROM activity_logs
+                    WHERE action IN ('START_EXAM', 'SUBMIT_EXAM')
+                          AND created_at >= datetime(?, '-9 hours') AND created_at < datetime(?, '-9 hours')
+                          AND ${EXAM_FILTER_SQL}
+                `).get(from, to, filter.cert, filter.mode);
+                return {
+                    examUsers: row.examUsers || 0,
+                    starts: row.starts || 0,
+                    submits: row.submits || 0,
+                    avgScore: row.avgScore === null ? null : Math.round(row.avgScore * 10) / 10
+                };
+            };
+            const now = Date.now();
+            const yesterdayStart = kstDateString(now - 86400000) + ' 00:00:00';
+            const todayStart = kstDateString(now) + ' 00:00:00';
+            const tomorrowStart = kstDateString(now + 86400000) + ' 00:00:00';
+            const today = examDay(todayStart, tomorrowStart);
             const total = db.prepare(`
                 SELECT COUNT(DISTINCT fingerprint) AS cnt
                 FROM activity_logs
@@ -715,11 +730,12 @@ app.get('/api/admin/stats', (req, res) => {
             `).get(filter.cert, filter.mode);
             return res.json({
                 exam: req.query.exam,
-                todayExamUsers: today.examUsers || 0,
-                todayStarts: today.starts || 0,
-                todaySubmits: today.submits || 0,
-                todayAvgScore: today.avgScore === null ? null : Math.round(today.avgScore * 10) / 10,
-                totalExamUsers: total.cnt || 0
+                todayExamUsers: today.examUsers,
+                todayStarts: today.starts,
+                todaySubmits: today.submits,
+                todayAvgScore: today.avgScore,
+                totalExamUsers: total.cnt || 0,
+                yesterday: examDay(yesterdayStart, todayStart)
             });
         }
 
@@ -763,11 +779,20 @@ app.get('/api/admin/stats', (req, res) => {
             LIMIT 30
         `).all();
 
+        // 어제(한국 시간) 방문자·활동 수: 개요 카드의 어제 대비 증감용
+        const yesterdayRow = db.prepare(`
+            SELECT COUNT(DISTINCT fingerprint) AS dau, COUNT(*) AS actions
+            FROM activity_logs
+            WHERE date(created_at, '+9 hours') = date('now', '+9 hours', '-1 day')
+        `).get();
+
         res.json({
             todayDau: todayDauRow.cnt,
             liveUsers: liveUsersRow.cnt,
             totalUsers: totalUsersRow.cnt,
             todayActions: todayActionsRow.cnt,
+            yesterdayDau: yesterdayRow.dau,
+            yesterdayActions: yesterdayRow.actions,
             featureStats: featureStats,
             recentUsers: recentUsers
         });

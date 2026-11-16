@@ -84,7 +84,7 @@ routes/net2.routes.js        /api/net2/* 라우팅
 controllers/net2.controller.js  네트워크관리사 2급 API
 lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점)
 public/index.html, app.js, style.css   프런트엔드 (단일 페이지)
-public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일)
+public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일. 900px 이상은 왼쪽 메뉴, 미만은 하단 탭 바)
 public/favicon.svg           브라우저 탭 아이콘
 data/written.json            정처기 필기 (1,900문항)
 data/practical.json          정처기 실기 (191문항)
@@ -122,6 +122,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 - `/api/admin/*`: 비밀번호는 **헤더 `x-admin-key`로만** 받는다(`?key=`는 2026-11-16에 제거). 관리자 화면은 `encodeURIComponent`로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 `timingSafeEqual`). **인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429**다.
   - `auth-status`, `POST password {currentPassword, newPassword}`: 초기 비밀번호 상태에서도 쓸 수 있는 유일한 두 API
   - `stats`(오늘 통계), `user-detail?fp=`, `trends?days=`(KST 일별), `content?days=`(시험 시작·제출 로그 집계, 과목별 정답률 `subjects`), `server`(가동 시간·메모리·세션 수·문항 수·DB 크기)
+  - `stats`는 어제 값도 준다(통합: `yesterdayDau`·`yesterdayActions`, 시험별: `yesterday`). 개요 카드의 어제 대비 증감에 쓴다.
   - `stats`·`trends`·`content`는 `exam=qnet-written|qnet-practical|net2-written`으로 시험 하나만 볼 수 있다(그 시험의 시작·제출 로그만 센다. 방문자 대신 응시자). 없거나 모르는 값이면 통합.
   - `feedback`(목록·필터·페이지), `POST feedback/:id/status`(`open`/`done`). 제보 분류는 컬럼 없이 메시지 앞 `[분류]`에서 읽는다.
   - `notices` 목록·등록(300자), `POST notices/:id/active`, `DELETE notices/:id`
@@ -316,6 +317,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 | `e9f35c7` | 정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거 |
 | `59aa2c5` | `html, body` 폭 지정. `body`가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인 |
 | 2026-11-13 | 분석 탭 오답 노트, 이력 "틀린 문제만 보기" 필터, My 탭 보기 표시와 정답·해설 보완, `CLAUDE.html` 변환기와 훅 (커밋 "오답 노트·이력 필터·My 탭 정답 표시 추가") |
+| 2026-11-16 (3차) | 관리자 화면 대시보드형 개편(왼쪽 메뉴/하단 탭, 앱과 같은 남색 헤더·로고, 카드 아이콘과 어제 대비 증감, 기간 선택 하나로 통합, 시험 통계 표 3개를 전환 탭으로 묶음) |
 | 2026-11-16 (2차) | 개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트 |
 | 2026-11-16 | 탭 아이콘, 관리자 화면(`admin.html`), `user-detail` SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(`?key=` 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리 |
 

@@ -160,7 +160,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
         <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
         <a class="stat s-issues" href="#s25"><b>16</b><span>남은 문제</span></a>
         <div class="stat"><b>14</b><span>섹션</span></div>
-        <div class="stat wide"><b>2026-11-16 10:27</b><span>CLAUDE.md 마지막 수정</span></div>
+        <div class="stat wide"><b>2026-11-16 11:00</b><span>CLAUDE.md 마지막 수정</span></div>
       </div>
       <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
     </div>
@@ -248,7 +248,7 @@ routes/net2.routes.js        /api/net2/* 라우팅
 controllers/net2.controller.js  네트워크관리사 2급 API
 lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점)
 public/index.html, app.js, style.css   프런트엔드 (단일 페이지)
-public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일)
+public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일. 900px 이상은 왼쪽 메뉴, 미만은 하단 탭 바)
 public/favicon.svg           브라우저 탭 아이콘
 data/written.json            정처기 필기 (1,900문항)
 data/practical.json          정처기 실기 (191문항)
@@ -276,6 +276,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <li class="u"><div class="li-main"><code>GET /api/notice</code>: 표시 중인 공지 중 가장 최근 1개(<code>no-store</code>). 앱은 헤더 아래 배너로 보여 준다.</div></li>
 <li class="u"><div class="li-main"><code>/api/admin/*</code>: 비밀번호는 <strong>헤더 <code>x-admin-key</code>로만</strong> 받는다(<code>?key=</code>는 2026-11-16에 제거). 관리자 화면은 <code>encodeURIComponent</code>로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 <code>timingSafeEqual</code>). <strong>인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429</strong>다.</div><ul><li><div class="li-main"><code>auth-status</code>, <code>POST password {currentPassword, newPassword}</code>: 초기 비밀번호 상태에서도 쓸 수 있는 유일한 두 API</div></li>
 <li><div class="li-main"><code>stats</code>(오늘 통계), <code>user-detail?fp=</code>, <code>trends?days=</code>(KST 일별), <code>content?days=</code>(시험 시작·제출 로그 집계, 과목별 정답률 <code>subjects</code>), <code>server</code>(가동 시간·메모리·세션 수·문항 수·DB 크기)</div></li>
+<li><div class="li-main"><code>stats</code>는 어제 값도 준다(통합: <code>yesterdayDau</code>·<code>yesterdayActions</code>, 시험별: <code>yesterday</code>). 개요 카드의 어제 대비 증감에 쓴다.</div></li>
 <li><div class="li-main"><code>stats</code>·<code>trends</code>·<code>content</code>는 <code>exam=qnet-written|qnet-practical|net2-written</code>으로 시험 하나만 볼 수 있다(그 시험의 시작·제출 로그만 센다. 방문자 대신 응시자). 없거나 모르는 값이면 통합.</div></li>
 <li><div class="li-main"><code>feedback</code>(목록·필터·페이지), <code>POST feedback/:id/status</code>(<code>open</code>/<code>done</code>). 제보 분류는 컬럼 없이 메시지 앞 <code>[분류]</code>에서 읽는다.</div></li>
 <li><div class="li-main"><code>notices</code> 목록·등록(300자), <code>POST notices/:id/active</code>, <code>DELETE notices/:id</code></div></li>
@@ -463,6 +464,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <tr class="u"><td><code>e9f35c7</code></td><td>정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거</td></tr>
 <tr class="u"><td><code>59aa2c5</code></td><td><code>html, body</code> 폭 지정. <code>body</code>가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인</td></tr>
 <tr class="u"><td>2026-11-13</td><td>분석 탭 오답 노트, 이력 &quot;틀린 문제만 보기&quot; 필터, My 탭 보기 표시와 정답·해설 보완, <code>CLAUDE.html</code> 변환기와 훅 (커밋 &quot;오답 노트·이력 필터·My 탭 정답 표시 추가&quot;)</td></tr>
+<tr class="u"><td>2026-11-16 (3차)</td><td>관리자 화면 대시보드형 개편(왼쪽 메뉴/하단 탭, 앱과 같은 남색 헤더·로고, 카드 아이콘과 어제 대비 증감, 기간 선택 하나로 통합, 시험 통계 표 3개를 전환 탭으로 묶음)</td></tr>
 <tr class="u"><td>2026-11-16 (2차)</td><td>개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트</td></tr>
 <tr class="u"><td>2026-11-16</td><td>탭 아이콘, 관리자 화면(<code>admin.html</code>), <code>user-detail</code> SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(<code>?key=</code> 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리</td></tr>
 </tbody></table></div>
