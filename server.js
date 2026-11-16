@@ -6,16 +6,36 @@ const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const net2Router = require('./routes/net2.routes');
 const { getSessionCount: getNet2SessionCount } = require('./controllers/net2.controller');
-const { shuffle, dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical } = require('./lib/quiz-utils');
+const { shuffle, dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical, pruneSessionStore } = require('./lib/quiz-utils');
+const questionStore = require('./lib/question-store');
+const { createStaticCache } = require('./lib/static-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 관리자 화면·API는 별도 포트로만 연다. 기본은 서버 내부(127.0.0.1)에서만 접속 가능 → SSH 터널로 접속한다.
+// ADMIN_PORT=off 이면 관리자 기능을 끈다.
+const ADMIN_PORT = process.env.ADMIN_PORT || 3100;
+const ADMIN_HOST = process.env.ADMIN_HOST || '127.0.0.1';
+const adminApp = express();
+
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const DATA_FILES = {
+    written: path.join(__dirname, 'data', 'written.json'),
+    practical: path.join(__dirname, 'data', 'practical.json')
+};
+
+// 메모리 세션: 24시간이 지나면 지우고, 최대 개수를 넘으면 가장 오래된 것부터 지운다.
+// 세션은 공유 문제 객체를 가리키기만 하므로 세션 하나는 수십 KB 이하다.
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SESSION_MAX_COUNT = 5000;
 
 // 미들웨어 설정
 app.use(cors()); // 추가: 모바일 앱 및 외부 도메인 API 요청 허용
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(createStaticCache(PUBLIC_DIR)); // html/js/css/svg: 미리 압축해 둔 것을 보낸다
+app.use(express.static(PUBLIC_DIR));    // 그 밖의 파일
 app.use('/api/net2', net2Router);
 
 // SQLite 데이터베이스 초기화
@@ -23,6 +43,8 @@ app.use('/api/net2', net2Router);
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'feedback.db');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+// WAL에서는 NORMAL이어도 DB가 깨지지 않는다(전원이 끊기면 마지막 몇 건의 로그만 잃을 수 있음). 쓰기마다 디스크 동기화를 하지 않아 가볍다.
+db.pragma('synchronous = NORMAL');
 
 // 테이블 및 인덱스 초기화
 db.exec(`
@@ -68,22 +90,25 @@ const SERVER_STARTED_AT = Date.now();
 
 // 메모리 세션 저장소
 const sessionStore = new Map();
+setInterval(() => pruneSessionStore(sessionStore, SESSION_MAX_AGE_MS, SESSION_MAX_COUNT), 10 * 60 * 1000).unref();
 
 // 1. 등록된 회차/연도 목록 조회 API (실기는 연도별 추출)
 app.get('/api/quiz/rounds', (req, res) => {
     try {
         const type = req.query.type || 'practical';
         const isWritten = (type === 'written');
-        const dataPath = isWritten 
-            ? path.join(__dirname, 'data', 'written.json') 
-            : path.join(__dirname, 'data', 'practical.json');
-        
-        if (!fs.existsSync(dataPath)) {
-            return res.json([]);
-        }
+        const dataPath = isWritten ? DATA_FILES.written : DATA_FILES.practical;
 
-        const questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        // 데이터가 바뀌기 전까지 같은 결과이므로 한 번만 계산한다
+        const result = questionStore.memoize(dataPath, 'rounds', questions => buildRoundList(questions, isWritten));
+        res.json(result || []);
+    } catch (e) {
+        console.error('회차/연도 목록 조회 오류:', e);
+        res.status(500).json({ error: '목록 조회 실패' });
+    }
+});
 
+function buildRoundList(questions, isWritten) {
         if (!isWritten) {
             // [실기] 문항수 없이 연도별로만 고유하게 추출
             const yearSet = new Set();
@@ -100,7 +125,7 @@ app.get('/api/quiz/rounds', (req, res) => {
                 .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
                 .map(y => ({ name: y }));
 
-            return res.json(sortedYears);
+            return sortedYears;
         }
 
         // [필기] 회차별 추출 및 문항수 집계
@@ -126,27 +151,21 @@ app.get('/api/quiz/rounds', (req, res) => {
             count: count
         })).sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
 
-        res.json(sortedRounds);
-    } catch (e) {
-        console.error('회차/연도 목록 조회 오류:', e);
-        res.status(500).json({ error: '목록 조회 실패' });
-    }
-});
+        return sortedRounds;
+}
 
 // 2. 문제 출제 API
 app.post('/api/quiz/new', (req, res) => {
     try {
         const { year, bookmarkIds, solvedIds, examType, subject, targetQuestionId, resumeIds } = req.body;
         const isWritten = (examType === 'written');
-        const dataPath = isWritten
-            ? path.join(__dirname, 'data', 'written.json')
-            : path.join(__dirname, 'data', 'practical.json');
+        const dataPath = isWritten ? DATA_FILES.written : DATA_FILES.practical;
 
-        if (!fs.existsSync(dataPath)) {
+        // 공유 캐시(읽기 전용). 세션에는 이 객체들을 가리키는 배열만 저장된다.
+        const questions = questionStore.getQuestions(dataPath);
+        if (!questions) {
             return res.status(404).json({ error: '문제 데이터 파일을 찾을 수 없습니다.' });
         }
-
-        const questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         let selectedQuestions = [];
         let label = isWritten ? "필기 모의고사" : "실기 모의고사";
         let examLike = false; // 실전 모의고사(랜덤/회차) 여부: 과락 판정 대상
@@ -157,15 +176,16 @@ app.post('/api/quiz/new', (req, res) => {
             label = "단일 문항 학습";
         } else if (isRoundResume(year, resumeIds)) {
             // 이어풀기: 저장해 둔 문항 id 순서 그대로 세션을 복원한다 (회차 풀이)
-            const byId = new Map(questions.map(q => [q.id, q]));
+            const byId = questionStore.getQuestionMap(dataPath);
             selectedQuestions = [...new Set(resumeIds)].map(id => byId.get(id)).filter(Boolean);
             label = (year === 'cbt' || year === 'all') ? (isWritten ? "필기 실전 모의고사 (100제)" : "실기 무작위 30문항") : `${year} 기출 풀이`;
             examLike = true;
         } else if (bookmarkIdList.length > 0) {
-            selectedQuestions = questions.filter(q => bookmarkIdList.includes(q.id));
+            const wanted = new Set(bookmarkIdList);
+            selectedQuestions = questions.filter(q => wanted.has(q.id));
             label = "즐겨찾기 모의고사";
         } else if (year === 'sequential') {
-            selectedQuestions = questions;
+            selectedQuestions = questions.slice();
             label = isWritten ? "필기 전체 순차 풀이" : "실기 전체 순차 풀이";
         } else if (subject) {
             selectedQuestions = questions.filter(q => q.subject === subject);
@@ -208,15 +228,7 @@ app.post('/api/quiz/new', (req, res) => {
             examLike: examLike,
             createdAt: Date.now()
         });
-
-        if (sessionStore.size > 500) {
-            const now = Date.now();
-            for (const [key, value] of sessionStore.entries()) {
-                if (now - value.createdAt > 24 * 60 * 60 * 1000) {
-                    sessionStore.delete(key);
-                }
-            }
-        }
+        if (sessionStore.size > SESSION_MAX_COUNT) pruneSessionStore(sessionStore, SESSION_MAX_AGE_MS, SESSION_MAX_COUNT);
 
         res.json({
             sessionId: sessionId,
@@ -363,14 +375,8 @@ app.get('/api/quiz/search', (req, res) => {
         if (!query) return res.json([]);
 
         const isWritten = (type === 'written');
-        const dataPath = isWritten 
-            ? path.join(__dirname, 'data', 'written.json') 
-            : path.join(__dirname, 'data', 'practical.json');
-        
-        let questions = [];
-        if (fs.existsSync(dataPath)) {
-            questions = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-        }
+        const dataPath = isWritten ? DATA_FILES.written : DATA_FILES.practical;
+        const questions = questionStore.getQuestions(dataPath) || [];
 
         const filtered = questions.filter(q => {
             if (isWritten) {
@@ -483,6 +489,10 @@ function kstDateString(ms) {
     return new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+// 자주 실행되는 INSERT 문은 한 번만 준비해 둔다(요청마다 SQL을 다시 해석하지 않도록)
+const insertFeedbackStmt = db.prepare("INSERT INTO feedback (app_mode, message, fingerprint) VALUES (?, ?, ?)");
+const insertLogStmt = db.prepare("INSERT INTO activity_logs (fingerprint, action, detail) VALUES (?, ?, ?)");
+
 // 7. 의견 제보 API
 const FEEDBACK_MAX_LENGTH = 2000; // 앱 입력칸 1,000자 + 분류·자격증·문항 정보
 
@@ -502,8 +512,7 @@ app.post('/api/feedback', (req, res) => {
 
         const mode = (typeof appMode === 'string' && appMode) ? appMode.slice(0, 20) : "common";
         const fp = (typeof fingerprint === 'string' && fingerprint) ? fingerprint.slice(0, 100) : "UNKNOWN";
-        const stmt = db.prepare("INSERT INTO feedback (app_mode, message, fingerprint) VALUES (?, ?, ?)");
-        stmt.run(mode, message.trim(), fp);
+        insertFeedbackStmt.run(mode, message.trim(), fp);
         res.json({ success: true });
     } catch (e) {
         console.error("제보 등록 오류:", e);
@@ -531,8 +540,7 @@ app.post('/api/log', (req, res) => {
         let detailText = JSON.stringify((detail && typeof detail === 'object') ? detail : {});
         if (detailText.length > LOG_DETAIL_MAX_LENGTH) detailText = JSON.stringify({ truncated: true });
 
-        const stmt = db.prepare("INSERT INTO activity_logs (fingerprint, action, detail) VALUES (?, ?, ?)");
-        stmt.run(fingerprint, action, detailText);
+        insertLogStmt.run(fingerprint, action, detailText);
         res.json({ success: true });
     } catch (e) {
         console.error("로그 수집 오류:", e);
@@ -624,10 +632,16 @@ function adminKeyCandidates(req) {
     return decoded !== raw ? [decoded, raw] : [raw];
 }
 
+// 관리자 전용 서버(별도 포트). 사용자 포트에는 관리자 화면과 API가 없다.
+adminApp.disable('x-powered-by');
+adminApp.use(express.json());
+adminApp.use(createStaticCache(path.join(__dirname, 'admin'), { files: { '/': 'admin.html', '/admin.html': 'admin.html' } }));
+adminApp.use(createStaticCache(PUBLIC_DIR, { files: { '/favicon.svg': 'favicon.svg' } }));
+
 // 초기 비밀번호로 로그인한 상태에서도 쓸 수 있는 API
 const ADMIN_ROUTES_BEFORE_PASSWORD_CHANGE = new Set(['GET /auth-status', 'POST /password']);
 
-app.use('/api/admin', (req, res, next) => {
+adminApp.use('/api/admin', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
     const ip = getClientIp(req);
     if (adminFailLimiter.isBlocked(ip)) {
@@ -647,12 +661,12 @@ app.use('/api/admin', (req, res, next) => {
 });
 
 // 10-0. 비밀번호 상태와 변경
-app.get('/api/admin/auth-status', (req, res) => {
+adminApp.get('/api/admin/auth-status', (req, res) => {
     const cred = req.adminCredential;
     res.json({ mustChangePassword: cred.source === 'default', source: cred.source, updatedAt: cred.updatedAt });
 });
 
-app.post('/api/admin/password', (req, res) => {
+adminApp.post('/api/admin/password', (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body || {};
         const cred = req.adminCredential;
@@ -694,7 +708,7 @@ function getExamFilter(req) {
 }
 
 // 10-1. 오늘 통계
-app.get('/api/admin/stats', (req, res) => {
+adminApp.get('/api/admin/stats', (req, res) => {
     try {
         // 시험 하나를 고른 경우: 그 시험의 시작·제출 로그만 센다
         const filter = getExamFilter(req);
@@ -803,7 +817,7 @@ app.get('/api/admin/stats', (req, res) => {
 });
 
 // 10-2. 개별 사용자 상세 타임라인
-app.get('/api/admin/user-detail', (req, res) => {
+adminApp.get('/api/admin/user-detail', (req, res) => {
     const { fp } = req.query;
     if (typeof fp !== 'string' || !fp || fp.length > 100) {
         return res.status(400).json({ error: "식별자가 누락되었습니다." });
@@ -834,7 +848,7 @@ app.get('/api/admin/user-detail', (req, res) => {
 });
 
 // 10-3. 기간별 추이 (한국 시간 기준 일별)
-app.get('/api/admin/trends', (req, res) => {
+adminApp.get('/api/admin/trends', (req, res) => {
     try {
         const days = clampInt(req.query.days, 1, 90, 14);
         const now = Date.now();
@@ -887,7 +901,7 @@ function sessionKindLabel(year) {
     return SESSION_KIND_LABELS[year] || '회차 풀이';
 }
 
-app.get('/api/admin/content', (req, res) => {
+adminApp.get('/api/admin/content', (req, res) => {
     try {
         const days = clampInt(req.query.days, 1, 365, 30);
         const since = kstDateString(Date.now() - (days - 1) * 86400000) + ' 00:00:00';
@@ -1004,7 +1018,7 @@ app.get('/api/admin/content', (req, res) => {
 // 10-5. 서버 상태
 function countQuestions(file) {
     try {
-        const arr = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const arr = questionStore.getQuestions(file);
         return Array.isArray(arr) ? arr.length : null;
     } catch (e) {
         return null;
@@ -1015,7 +1029,7 @@ function fileSize(file) {
     try { return fs.statSync(file).size; } catch (e) { return 0; }
 }
 
-app.get('/api/admin/server', (req, res) => {
+adminApp.get('/api/admin/server', (req, res) => {
     try {
         const mem = process.memoryUsage();
         const logInfo = db.prepare("SELECT COUNT(*) AS cnt, MIN(datetime(created_at, '+9 hours')) AS oldest FROM activity_logs").get();
@@ -1054,7 +1068,7 @@ function feedbackCategory(message) {
     return m ? m[1] : '분류 없음';
 }
 
-app.get('/api/admin/feedback', (req, res) => {
+adminApp.get('/api/admin/feedback', (req, res) => {
     try {
         const status = ['open', 'done'].includes(req.query.status) ? req.query.status : 'all';
         const mode = typeof req.query.mode === 'string' ? req.query.mode.slice(0, 20) : '';
@@ -1103,7 +1117,7 @@ app.get('/api/admin/feedback', (req, res) => {
     }
 });
 
-app.post('/api/admin/feedback/:id/status', (req, res) => {
+adminApp.post('/api/admin/feedback/:id/status', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const status = req.body && req.body.status;
@@ -1127,7 +1141,7 @@ app.post('/api/admin/feedback/:id/status', (req, res) => {
 const NOTICE_LEVELS = ['info', 'warn'];
 const NOTICE_MAX_LENGTH = 300;
 
-app.get('/api/admin/notices', (req, res) => {
+adminApp.get('/api/admin/notices', (req, res) => {
     try {
         const rows = db.prepare(`
             SELECT id, message, level, active, datetime(created_at, '+9 hours') AS kst_time
@@ -1142,7 +1156,7 @@ app.get('/api/admin/notices', (req, res) => {
     }
 });
 
-app.post('/api/admin/notices', (req, res) => {
+adminApp.post('/api/admin/notices', (req, res) => {
     try {
         const message = typeof (req.body && req.body.message) === 'string' ? req.body.message.trim() : '';
         const level = NOTICE_LEVELS.includes(req.body && req.body.level) ? req.body.level : 'info';
@@ -1156,7 +1170,7 @@ app.post('/api/admin/notices', (req, res) => {
     }
 });
 
-app.post('/api/admin/notices/:id/active', (req, res) => {
+adminApp.post('/api/admin/notices/:id/active', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const active = req.body && req.body.active;
@@ -1172,7 +1186,7 @@ app.post('/api/admin/notices/:id/active', (req, res) => {
     }
 });
 
-app.delete('/api/admin/notices/:id', (req, res) => {
+adminApp.delete('/api/admin/notices/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: "요청 형식이 올바르지 않습니다." });
@@ -1189,7 +1203,7 @@ app.delete('/api/admin/notices/:id', (req, res) => {
 const LOG_RETENTION_MIN_DAYS = 30;
 const LOG_RETENTION_MAX_DAYS = 3650;
 
-app.post('/api/admin/logs/cleanup', (req, res) => {
+adminApp.post('/api/admin/logs/cleanup', (req, res) => {
     try {
         const days = parseInt(req.body && req.body.days, 10);
         if (!Number.isInteger(days) || days < LOG_RETENTION_MIN_DAYS || days > LOG_RETENTION_MAX_DAYS) {
@@ -1215,6 +1229,17 @@ app.post('/api/admin/logs/cleanup', (req, res) => {
 });
 
 // 서버 구동
+app.disable('x-powered-by');
 app.listen(PORT, () => {
     console.log(`서버가 포트 ${PORT}에서 정상 구동 중입니다.`);
 });
+
+// 관리자 화면: 기본은 서버 내부(127.0.0.1)에서만 열린다. 관리자 포트를 못 열어도 사용자 화면은 그대로 동작한다.
+if (String(ADMIN_PORT).toLowerCase() !== 'off') {
+    const adminServer = adminApp.listen(Number(ADMIN_PORT), ADMIN_HOST, () => {
+        console.log(`관리자 화면: http://${ADMIN_HOST}:${ADMIN_PORT}/ (${ADMIN_HOST === '127.0.0.1' ? '서버 내부 전용, SSH 터널로 접속' : '외부 접속 허용'})`);
+    });
+    adminServer.on('error', (e) => {
+        console.error(`관리자 포트 ${ADMIN_PORT}를 열지 못했습니다. 사용자 화면은 정상 동작합니다: ${e.message}`);
+    });
+}

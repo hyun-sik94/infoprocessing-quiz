@@ -158,9 +158,9 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
       <div class="lead"><p>IT 자격증 스마트 CBT: 정보처리기사(필기·실기)와 네트워크관리사 2급(필기) 기출문제 풀이 웹앱.<br>Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐라 JS 단일 페이지가 풀이·채점 결과·즐겨찾기·분석을 보여준다.</p></div>
       <div class="stats">
         <a class="stat s-rules" href="#s2"><b>8</b><span>최우선 규칙</span></a>
-        <a class="stat s-issues" href="#s25"><b>16</b><span>남은 문제</span></a>
+        <a class="stat s-issues" href="#s25"><b>15</b><span>남은 문제</span></a>
         <div class="stat"><b>14</b><span>섹션</span></div>
-        <div class="stat wide"><b>2026-11-16 11:00</b><span>CLAUDE.md 마지막 수정</span></div>
+        <div class="stat wide"><b>2026-11-16 13:03</b><span>CLAUDE.md 마지막 수정</span></div>
       </div>
       <p class="note">이 화면은 <code>CLAUDE.md</code>에서 자동으로 만들어집니다. 내용은 <code>CLAUDE.md</code>에서 고치세요.</p>
     </div>
@@ -171,7 +171,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <div class="sec-body">
 <div class="table-wrap"><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
 <tr class="u"><td>스택</td><td>Node.js + Express, SQLite(<code>better-sqlite3</code>), 바닐라 JS 단일 페이지. 빌드 단계 없음</td></tr>
-<tr class="u"><td>실행</td><td><code>npm install</code> → <code>node server.js</code> → <code>http://localhost:3000</code></td></tr>
+<tr class="u"><td>실행</td><td><code>npm install</code> → <code>node server.js</code> → 사용자 <code>http://localhost:3000</code>, 관리자 <code>http://localhost:3100</code> (서버 내부 전용)</td></tr>
 <tr class="u"><td>배포</td><td><code>main</code>에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다</td></tr>
 <tr class="u"><td>문제 수</td><td>정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150</td></tr>
 <tr class="u"><td>사용자 기록</td><td>서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도)</td></tr>
@@ -218,7 +218,7 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <li class="u"><div class="li-main"><strong>Bash 도구의 명령 문자열 안 백슬래시(<code>\\</code>, <code>\n</code>)는 줄어들어 전달된다.</strong> 이스케이프가 들어간 패치 스크립트는 파일로 만들어 실행한다.</div></li>
 <li class="u"><div class="li-main"><strong>줄바꿈:</strong> 작업 트리의 <code>app.js</code>, <code>style.css</code>, <code>server.js</code>는 CRLF, <code>index.html</code>과 <code>net2.controller.js</code>, <code>lib/quiz-utils.js</code>는 LF다(git <code>core.autocrlf=true</code>). 파일의 기존 줄바꿈 형식을 유지하고 혼재시키지 않는다.</div></li>
 <li class="u"><div class="li-main">BOM을 추가하지 않는다. 수정 후 <code>U+FFFD</code>가 없는지 확인한다.</div></li>
-<li class="u"><div class="li-main"><strong>3000 포트는 사용자가 쓴다.</strong> 테스트 서버는 다른 포트(<code>PORT=3001</code>)로 띄우고, 끝나면 반드시 종료한다. 사용자가 띄운 프로세스는 종료하지 않는다(2026-11-10 테스트 서버가 3000을 점유해 사용자의 <code>npm start</code>가 실패했다).</div></li></ul>
+<li class="u"><div class="li-main"><strong>3000·3100 포트는 사용자가 쓴다.</strong> 테스트 서버는 다른 포트(<code>PORT=3001 ADMIN_PORT=3101</code>)로 띄우고, 끝나면 반드시 종료한다. 사용자가 띄운 프로세스는 종료하지 않는다(2026-11-10 테스트 서버가 3000을 점유해 사용자의 <code>npm start</code>가 실패했다).</div></li></ul>
 </div>
 </section>
 
@@ -227,16 +227,18 @@ mark { background: #ffe58a; color: #1c2530; border-radius: 2px; padding: 0 1px; 
 <div class="sec-body">
 <pre class="u"><code>npm install        # express, cors, better-sqlite3
 node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)</code></pre>
-<ul><li class="u"><div class="li-main">접속: <code>http://localhost:3000</code></div></li>
-<li class="u"><div class="li-main"><strong>관리자 화면은 <code>/admin.html</code>이다.</strong> 비밀번호 우선순위: 관리자 화면에서 바꾼 비밀번호(<code>feedback.db</code>의 <code>admin_settings</code>, scrypt 해시) → 환경변수 <code>ADMIN_PASSWORD</code> → 초기 비밀번호.</div><ul><li><div class="li-main">초기 비밀번호는 사용자가 정했고(2026-11-16) 코드에는 해시만 있다. 초기 비밀번호로 로그인하면 <strong>새 비밀번호로 바꾸기 전까지 다른 관리자 API는 403</strong>이다. 비밀번호를 문서나 코드에 평문으로 적지 않는다.</div></li>
+<ul><li class="u"><div class="li-main">접속: 사용자 <code>http://localhost:3000</code>, 관리자 <code>http://localhost:3100</code></div></li>
+<li class="u"><div class="li-main"><strong>관리자 화면·API는 별도 포트(<code>ADMIN_PORT</code>, 기본 3100)에서만 열린다.</strong> 기본은 <code>ADMIN_HOST=127.0.0.1</code>이라 서버 내부에서만 접속된다. 운영에서는 SSH 터널로 접속한다: <code>ssh -L 3100:127.0.0.1:3100 ubuntu@서버</code> 후 PC 브라우저에서 <code>http://localhost:3100</code>. 사용자 포트(3000)에는 관리자 화면과 <code>/api/admin/*</code>가 없다(404). <code>ADMIN_PORT=off</code>면 관리자 기능을 끈다. 관리자 포트를 못 열어도 사용자 화면은 동작한다.</div></li>
+<li class="u"><div class="li-main"><strong>관리자 비밀번호</strong> 비밀번호 우선순위: 관리자 화면에서 바꾼 비밀번호(<code>feedback.db</code>의 <code>admin_settings</code>, scrypt 해시) → 환경변수 <code>ADMIN_PASSWORD</code> → 초기 비밀번호.</div><ul><li><div class="li-main">초기 비밀번호는 사용자가 정했고(2026-11-16) 코드에는 해시만 있다. 초기 비밀번호로 로그인하면 <strong>새 비밀번호로 바꾸기 전까지 다른 관리자 API는 403</strong>이다. 비밀번호를 문서나 코드에 평문으로 적지 않는다.</div></li>
 <li><div class="li-main">관리자 화면 &quot;서버·로그&quot; 탭에서 비밀번호를 바꿀 수 있다(8~128자, 초기 비밀번호 재사용 불가). 한 번 바꾸면 환경변수는 무시된다.</div></li>
 <li><div class="li-main">잊었을 때: 서버에서 <code>node scripts/reset-admin-password.js</code> (저장된 비밀번호를 지워 환경변수 또는 초기 비밀번호로 돌아간다. 재시작 불필요).</div></li>
 <li><div class="li-main">비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.</div></li></ul></li>
 <li class="u"><div class="li-main"><code>DB_PATH</code> 환경변수로 DB 파일 위치를 바꿀 수 있다(테스트용. 운영은 기본값 <code>feedback.db</code>). 테스트 서버는 임시 폴더의 DB로 띄워 실제 <code>feedback.db</code>를 건드리지 않는다.</div></li>
 <li class="u"><div class="li-main">이미 3000 포트를 쓰는 프로세스가 있으면 <code>EADDRINUSE</code> 오류로 서버가 바로 종료된다. 다른 포트(<code>$env:PORT=3001</code>)로 켜거나 기존 프로세스를 먼저 종료한다.</div></li>
 <li class="u"><div class="li-main">세션은 서버 메모리(<code>Map</code>)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)</div></li>
-<li class="u"><div class="li-main"><strong>배포:</strong> <code>.github/workflows/deploy.yml</code>. <code>main</code>에 push하면 운영 서버에서 <code>git fetch</code> + <code>git reset --hard origin/main</code> → <code>npm install --omit=dev</code> → <code>pm2 reload quiz-app</code>을 실행한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.</div><ul><li><div class="li-main">2026-11-16에 <code>pull</code>을 <code>reset --hard</code>로 바꿨다. 이력을 다시 써도(강제 push) 배포되게 하기 위해서다. 운영 서버에서 git이 추적하는 파일을 직접 고치면 다음 배포 때 사라진다. <code>feedback.db</code>처럼 추적하지 않는 파일은 남는다.</div></li></ul></li>
-<li class="u"><div class="li-main">정적 파일은 <code>express.static</code>으로 서빙하고 <code>index.html</code>에 캐시 방지 헤더가 없다. 배포 후에도 브라우저가 옛 <code>index.html</code>을 쓰면 옛 <code>app.js</code>·<code>style.css</code>가 그대로 보인다.</div></li></ul>
+<li class="u"><div class="li-main"><strong>배포:</strong> <code>.github/workflows/deploy.yml</code>. <code>main</code>에 push하면 운영 서버에서 <code>git fetch</code> + <code>git reset --hard origin/main</code> → <code>npm install --omit=dev</code> → <code>pm2 reload quiz-app</code>을 실행하고, <code>pm2-logrotate</code>(10MB·7개 보관)가 없으면 설치한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.</div><ul><li><div class="li-main">2026-11-16에 <code>pull</code>을 <code>reset --hard</code>로 바꿨다. 이력을 다시 써도(강제 push) 배포되게 하기 위해서다. 운영 서버에서 git이 추적하는 파일을 직접 고치면 다음 배포 때 사라진다. <code>feedback.db</code>처럼 추적하지 않는 파일은 남는다.</div></li></ul></li>
+<li class="u"><div class="li-main">정적 파일(html/js/css/svg)은 <code>lib/static-cache.js</code>가 gzip 압축본을 미리 만들어 보낸다. <code>index.html</code>은 <code>no-cache</code>(매번 ETag로 확인), <code>?v=</code>가 붙은 js·css는 1년 보관이다. <strong>그래서 <code>app.js</code>·<code>style.css</code>를 고치면 캐시 버전을 반드시 올려야 한다</strong>(안 올리면 브라우저가 옛 파일을 1년 동안 쓴다).</div></li>
+<li class="u"><div class="li-main"><strong>운영 서버:</strong> OCI VM.Standard.E2.1.Micro(1 OCPU, 메모리 1GB). pm2 설정은 <code>ecosystem.config.js</code>(프로세스 1개, V8 힙 256MB, 400MB 넘으면 재시작). 처음 한 번 <code>pm2 delete quiz-app &amp;&amp; pm2 start ecosystem.config.js &amp;&amp; pm2 save</code>가 필요하다. 시험 세션이 프로세스 메모리에 있으므로 cluster 모드(프로세스 여러 개)는 쓰지 않는다.</div></li></ul>
 </div>
 </section>
 
@@ -246,9 +248,12 @@ node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)</code></pr
 <pre class="u"><code>server.js                    정처기 API(/api/quiz/*), 제보·로그·관리자 API, 정적 파일 서빙
 routes/net2.routes.js        /api/net2/* 라우팅
 controllers/net2.controller.js  네트워크관리사 2급 API
-lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점)
+lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점, 세션 정리)
+lib/question-store.js        문제 JSON 메모리 캐시(읽기 전용·얼림, 파일이 바뀌면 다시 읽음). 응답용으로 고칠 때는 반드시 복사한다
+lib/static-cache.js          정적 파일 gzip 미리 압축·캐시 헤더
+ecosystem.config.js          pm2 실행 설정(운영)
 public/index.html, app.js, style.css   프런트엔드 (단일 페이지)
-public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일. 900px 이상은 왼쪽 메뉴, 미만은 하단 탭 바)
+admin/admin.html             관리자 화면 (관리자 포트에서만 제공. CSS·JS 내장 단일 파일. 900px 이상은 왼쪽 메뉴, 미만은 하단 탭 바)
 public/favicon.svg           브라우저 탭 아이콘
 data/written.json            정처기 필기 (1,900문항)
 data/practical.json          정처기 실기 (191문항)
@@ -407,7 +412,6 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <div class="table-wrap"><table><thead><tr><th>우선</th><th>내용</th><th>비고</th></tr></thead><tbody>
 <tr class="u"><td><span class="badge b-sec">보안</span></td><td>관리자 초기 비밀번호는 공개 저장소를 본 누구나 시도할 수 있다. 운영 서버에 <code>ADMIN_PASSWORD</code>가 없으면, 배포 후 관리자가 직접 로그인해 바꾸기 전까지 다른 사람이 먼저 바꿀 수 있다(그때는 <code>scripts/reset-admin-password.js</code>로 되찾는다).</td><td>배포 직후 바로 변경 필요</td></tr>
 <tr class="u"><td><span class="badge b-feat">기능</span></td><td>즐겨찾기가 <code>text</code>만으로 같은 문제를 판단한다. <code>text</code>는 같고 보기가 다른 문항(2026년 문항 중 15개)은 다른 문제인데 ★가 함께 켜진다.</td><td><code>text</code> + 보기 비교로 바꾸는 안 제안, 승인 대기</td></tr>
-<tr class="u"><td><span class="badge b-deploy">배포</span></td><td><code>index.html</code>에 캐시 방지 헤더가 없어 배포 후에도 옛 화면을 보는 경우가 있다.</td><td><code>Cache-Control: no-cache</code> 추가 안 제안, 승인 대기</td></tr>
 <tr class="u"><td><span class="badge b-data">데이터</span></td><td>정처기 필기 <code>20210207</code>과 <code>20230107</code>은 문제·보기가 같은데 정답이 다르다(Generalization / Realization). 해설도 &quot;기출문제 답안 기준…&quot; 형태.</td><td>어느 쪽이 맞는지 검수 필요</td></tr>
 <tr class="u"><td><span class="badge b-data">데이터</span></td><td>실기 <code>inputCount</code>와 정답 조각 수가 다른 문항 8개(54, 91, 94, 101, 122, 139, 152, 170). 한글·영문 병기 정답 후보 11개.</td><td>채점은 보정했으나 데이터 정리 후보</td></tr>
 <tr class="u"><td><span class="badge b-data">데이터</span></td><td>정처기 필기 <code>20220271</code> 보기 4개 끝에 공백, <code>20240263</code> 보기가 리터럴 <code>\t</code>, <code>\n</code>(의도일 수 있음).</td><td>확인 필요</td></tr>
@@ -416,7 +420,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <tr class="u"><td><span class="badge b-design">설계</span></td><td>과목 집중·즐겨찾기·오답 노트·단일 세션은 새로고침하면 단일 문항으로 열린다. 서버 세션은 메모리라 재시작하면 소실된다.</td><td></td></tr>
 <tr class="u"><td><span class="badge b-design">설계</span></td><td>이어풀기 진행도는 기기·브라우저별이고 백업 파일에 포함되지 않는다.</td><td>백업에 넣을지 결정 필요</td></tr>
 <tr class="u"><td><span class="badge b-design">설계</span></td><td>정답 해설이 버튼 위에 나타나서 모바일에서 버튼이 아래로 밀린다. 해설을 버튼 아래로 옮기는 안이 있다.</td><td>사용자 결정 필요</td></tr>
-<tr class="u"><td><span class="badge b-design">설계</span></td><td>My 탭 정답 보완과 오답 노트는 전용 API 없이 <code>bookmark</code> 세션을 빌려 쓴다. 서버 메모리에 쓰지 않는 세션이 남는다(세션이 500개를 넘으면 서버가 24시간 지난 것을 지운다).</td><td>전용 조회 API를 만들면 정리된다</td></tr>
+<tr class="u"><td><span class="badge b-design">설계</span></td><td>My 탭 정답 보완과 오답 노트는 전용 API 없이 <code>bookmark</code> 세션을 빌려 쓴다. 서버 메모리에 쓰지 않는 세션이 남는다(10분마다 24시간 지난 세션을 지우고, 5,000개를 넘으면 오래된 것부터 지운다).</td><td>전용 조회 API를 만들면 정리된다</td></tr>
 <tr class="u"><td><span class="badge b-sec">보안</span></td><td>2026-11-16 이력에서 <code>feedback.db</code>를 지웠지만, 그 전에 저장소를 복제·포크한 사람에게는 남아 있고, GitHub에서도 옛 커밋 해시로 직접 접근하면 한동안 보일 수 있다. 그 시점의 제보·식별값은 이미 공개됐던 것으로 본다.</td><td>완전 삭제는 GitHub 지원 요청 필요</td></tr>
 <tr class="u"><td><span class="badge b-check">확인</span></td><td>요청 제한은 IP 기준이다. 운영 서버 앞에 공용 IP 프록시(Cloudflare 등)가 있으면 여러 사용자가 한 IP로 묶여 제한에 함께 걸릴 수 있다.</td><td>운영 서버의 프록시 구성 확인 필요</td></tr>
 <tr class="u"><td><span class="badge b-a11y">접근성</span></td><td>글자 대비 기준(WCAG AA 4.5:1) 미달 후보 약 29개 남음(주색 <code>#0284c7</code> 글자 4.1:1, 탭바, 다크 테마 붉은 글자 등).</td><td>디자인 색상 체계 결정 필요</td></tr>
@@ -464,6 +468,7 @@ scripts/reset-admin-password.js  관리자 비밀번호 초기화(서버에서 �
 <tr class="u"><td><code>e9f35c7</code></td><td>정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거</td></tr>
 <tr class="u"><td><code>59aa2c5</code></td><td><code>html, body</code> 폭 지정. <code>body</code>가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인</td></tr>
 <tr class="u"><td>2026-11-13</td><td>분석 탭 오답 노트, 이력 &quot;틀린 문제만 보기&quot; 필터, My 탭 보기 표시와 정답·해설 보완, <code>CLAUDE.html</code> 변환기와 훅 (커밋 &quot;오답 노트·이력 필터·My 탭 정답 표시 추가&quot;)</td></tr>
+<tr class="u"><td>2026-11-16 (4차)</td><td>쓰지 않는 <code>sqlite3</code> 패키지 제거, 배포 때 pm2 로그 정리 설정. 성능: 문제 JSON을 요청마다 읽던 것을 메모리 캐시로(세션이 문항 사본을 들고 있어 순차 풀이 세션 600개에 1.1GB → 0.1GB), 세션 주기 정리, 정적 파일 gzip·캐시 헤더, 랜덤 중복 판별 키 캐시, SQLite <code>synchronous=NORMAL</code>. 로컬 측정: 회차 출제 75→829 req/s, 랜덤 59→1,007 req/s, 첫 방문 전송 203→48KB. 관리자 화면을 별도 포트(127.0.0.1:3100)로 분리</td></tr>
 <tr class="u"><td>2026-11-16 (3차)</td><td>관리자 화면 대시보드형 개편(왼쪽 메뉴/하단 탭, 앱과 같은 남색 헤더·로고, 카드 아이콘과 어제 대비 증감, 기간 선택 하나로 통합, 시험 통계 표 3개를 전환 탭으로 묶음)</td></tr>
 <tr class="u"><td>2026-11-16 (2차)</td><td>개요 시험 필터(통합·정처기 필기·실기·네트워크관리사 필기), 과목별 정답률, 관리자 비밀번호 DB 저장·화면에서 변경·초기 비밀번호 강제 변경, 비밀번호 초기화 스크립트</td></tr>
 <tr class="u"><td>2026-11-16</td><td>탭 아이콘, 관리자 화면(<code>admin.html</code>), <code>user-detail</code> SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(<code>?key=</code> 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리</td></tr>

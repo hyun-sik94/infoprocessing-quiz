@@ -1,39 +1,34 @@
 const path = require('path');
 const fs = require('fs');
-const { dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical } = require('../lib/quiz-utils');
+const { dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical, pruneSessionStore } = require('../lib/quiz-utils');
+const questionStore = require('../lib/question-store');
 
 // ──────────────────────────────────────────────
 // 네트워크관리사 2급 전용 인메모리 세션 저장소
 // ──────────────────────────────────────────────
 const net2SessionStore = new Map();
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SESSION_MAX_COUNT = 5000;
 
 /**
- * 세션 자동 정리 (500개 초과 시 24시간 경과 세션 제거)
+ * 세션 자동 정리: 24시간 지난 세션을 지우고, 최대 개수를 넘으면 가장 오래된 것부터 지운다
  */
 function pruneOldSessions() {
-    if (net2SessionStore.size > 500) {
-        const now = Date.now();
-        for (const [key, value] of net2SessionStore.entries()) {
-            if (now - value.createdAt > 24 * 60 * 60 * 1000) {
-                net2SessionStore.delete(key);
-            }
-        }
-    }
+    pruneSessionStore(net2SessionStore, SESSION_MAX_AGE_MS, SESSION_MAX_COUNT);
+}
+setInterval(pruneOldSessions, 10 * 60 * 1000).unref();
+
+function dataPathOf(type) {
+    return (type === 'written')
+        ? path.join(__dirname, '..', 'data', 'net2', 'written.json')
+        : path.join(__dirname, '..', 'data', 'net2', 'practical.json');
 }
 
 /**
- * 데이터 파일 로드 헬퍼
+ * 데이터 로드 헬퍼: 메모리 캐시(읽기 전용, 모든 요청·세션이 공유). 파일이 없으면 null
  */
 function loadQuestions(type) {
-    const isWritten = (type === 'written');
-    const dataPath = isWritten
-        ? path.join(__dirname, '..', 'data', 'net2', 'written.json')
-        : path.join(__dirname, '..', 'data', 'net2', 'practical.json');
-
-    if (!fs.existsSync(dataPath)) {
-        return null;
-    }
-    return JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    return questionStore.getQuestions(dataPathOf(type));
 }
 
 /**
@@ -139,14 +134,15 @@ function getNewQuiz(req, res) {
             label = "단일 문항 학습";
         } else if (isRoundResume(year, resumeIds)) {
             // 이어풀기: 저장해 둔 문항 id 순서 그대로 세션을 복원한다 (회차 풀이는 문항 순서가 섞이므로 순서 보존이 필요)
-            const byId = new Map(questions.map(q => [q.id, q]));
+            const byId = questionStore.getQuestionMap(dataPathOf(examType || 'practical'));
             selectedQuestions = [...new Set(resumeIds)].map(id => byId.get(id)).filter(Boolean);
             label = (year === 'cbt' || year === 'all') ? (isWritten ? "필기 실전 모의고사 (50제)" : "실기 무작위 20문항") : `${year} 기출 풀이`;
         } else if (bookmarkIdList.length > 0) {
-            selectedQuestions = questions.filter(q => bookmarkIdList.includes(q.id));
+            const wanted = new Set(bookmarkIdList);
+            selectedQuestions = questions.filter(q => wanted.has(q.id));
             label = "즐겨찾기 모의고사";
         } else if (year === 'sequential') {
-            selectedQuestions = questions;
+            selectedQuestions = questions.slice();
             label = isWritten ? "필기 전체 순차 풀이" : "실기 전체 순차 풀이";
         } else if (subject) {
             selectedQuestions = shuffleArray(questions.filter(q => q.subject === subject));
@@ -188,7 +184,7 @@ function getNewQuiz(req, res) {
             createdAt: Date.now()
         });
 
-        pruneOldSessions();
+        if (net2SessionStore.size > SESSION_MAX_COUNT) pruneOldSessions();
 
         res.json({
             sessionId: sessionId,

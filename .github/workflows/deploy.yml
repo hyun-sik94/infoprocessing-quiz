@@ -23,3 +23,8 @@ jobs:
             npm install --omit=dev
             pm2 reload quiz-app || pm2 restart quiz-app
             pm2 save
+            # pm2 로그가 디스크를 채우지 않도록: 처음 한 번만 설치, 10MB마다 나누고 7개 보관(압축)
+            pm2 describe pm2-logrotate > /dev/null 2>&1 || pm2 install pm2-logrotate
+            pm2 set pm2-logrotate:max_size 10M > /dev/null
+            pm2 set pm2-logrotate:retain 7 > /dev/null
+            pm2 set pm2-logrotate:compress true > /dev/null
