@@ -2,8 +2,10 @@ const express = require('express');
 const cors = require('cors'); // 이 줄을 추가합니다.
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const net2Router = require('./routes/net2.routes');
+const { getSessionCount: getNet2SessionCount } = require('./controllers/net2.controller');
 const { shuffle, dedupeQuestions, normalizeBookmarkIds, isRoundResume, scorePractical } = require('./lib/quiz-utils');
 
 const app = express();
@@ -17,7 +19,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/net2', net2Router);
 
 // SQLite 데이터베이스 초기화
-const dbPath = path.join(__dirname, 'feedback.db');
+// DB_PATH 환경변수는 테스트용(실제 feedback.db를 건드리지 않기 위해). 운영은 기본값을 쓴다.
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'feedback.db');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
@@ -40,7 +43,22 @@ db.exec(`
     );
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_activity_fp ON activity_logs(fingerprint);
+
+    CREATE TABLE IF NOT EXISTS notices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message TEXT NOT NULL,
+        level TEXT NOT NULL DEFAULT 'info',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 `);
+
+// 제보 처리 상태(관리자 화면). 기존 제보는 'open'(미처리)으로 시작한다. 기존 행의 내용은 바꾸지 않는다.
+const feedbackColumns = db.prepare("PRAGMA table_info(feedback)").all().map(c => c.name);
+if (!feedbackColumns.includes('status')) db.exec("ALTER TABLE feedback ADD COLUMN status TEXT NOT NULL DEFAULT 'open'");
+if (!feedbackColumns.includes('handled_at')) db.exec("ALTER TABLE feedback ADD COLUMN handled_at DATETIME");
+
+const SERVER_STARTED_AT = Date.now();
 
 // 메모리 세션 저장소
 const sessionStore = new Map();
@@ -381,16 +399,105 @@ app.get('/api/quiz/search', (req, res) => {
     }
 });
 
-// 6. 의견 제보 API
+// 6. 요청 제한 (패키지 없이 서버 메모리에서 처리. 서버를 재시작하면 초기화된다)
+// 접속 IP: 같은 서버나 사설망의 프록시를 거쳐 들어온 요청만 X-Forwarded-For를 믿고, 프록시가 마지막에 붙인 값을 쓴다.
+// 외부에서 바로 들어온 요청의 X-Forwarded-For는 위조할 수 있으므로 무시한다.
+const PRIVATE_ADDR = /^(?:::1$|127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|f[cd][0-9a-f]{2}:)/i;
+
+function getClientIp(req) {
+    let remote = (req.socket && req.socket.remoteAddress) || '';
+    if (remote.startsWith('::ffff:')) remote = remote.slice(7);
+    const xff = req.headers['x-forwarded-for'];
+    if (xff && PRIVATE_ADDR.test(remote)) {
+        const parts = String(xff).split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length) return parts[parts.length - 1];
+    }
+    return remote || 'unknown';
+}
+
+function createRateLimiter(limit, windowMs) {
+    const hits = new Map();
+    const timer = setInterval(() => {
+        const now = Date.now();
+        for (const [key, entry] of hits) {
+            if (entry.resetAt <= now) hits.delete(key);
+        }
+    }, 60 * 1000);
+    if (timer.unref) timer.unref();
+
+    function current(key) {
+        const entry = hits.get(key);
+        if (!entry || entry.resetAt <= Date.now()) return null;
+        return entry;
+    }
+
+    return {
+        // 1회 기록한다. 한도 안이면 true
+        hit(key) {
+            let entry = current(key);
+            if (!entry) {
+                entry = { count: 0, resetAt: Date.now() + windowMs };
+                hits.set(key, entry);
+            }
+            entry.count += 1;
+            return entry.count <= limit;
+        },
+        // 이미 한도를 다 썼으면 true (관리자 인증 실패 잠금용)
+        isBlocked(key) {
+            const entry = current(key);
+            return !!entry && entry.count >= limit;
+        },
+        retryAfterSec(key) {
+            const entry = current(key);
+            return entry ? Math.max(1, Math.ceil((entry.resetAt - Date.now()) / 1000)) : 0;
+        },
+        reset(key) {
+            hits.delete(key);
+        }
+    };
+}
+
+const logLimiter = createRateLimiter(120, 60 * 1000);            // 활동 로그: IP당 1분 120건
+const feedbackLimiter = createRateLimiter(5, 10 * 60 * 1000);    // 제보: IP당 10분 5건
+const adminFailLimiter = createRateLimiter(10, 15 * 60 * 1000);  // 관리자 인증 실패: IP당 15분 10회
+
+function rejectTooMany(res, limiter, key, message) {
+    res.set('Retry-After', String(limiter.retryAfterSec(key)));
+    return res.status(429).json({ error: message });
+}
+
+function clampInt(value, min, max, fallback) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+}
+
+// 한국 시간 기준 날짜 문자열(YYYY-MM-DD)
+function kstDateString(ms) {
+    return new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// 7. 의견 제보 API
+const FEEDBACK_MAX_LENGTH = 2000; // 앱 입력칸 1,000자 + 분류·자격증·문항 정보
+
 app.post('/api/feedback', (req, res) => {
     try {
-        const { appMode, message, fingerprint } = req.body;
-        if (!message || !message.trim()) {
+        const { appMode, message, fingerprint } = req.body || {};
+        if (typeof message !== 'string' || !message.trim()) {
             return res.status(400).json({ error: "내용을 입력해 주세요." });
         }
+        if (message.length > FEEDBACK_MAX_LENGTH) {
+            return res.status(400).json({ error: "내용이 너무 깁니다. 1,000자 이내로 적어 주세요." });
+        }
+        const ip = getClientIp(req);
+        if (!feedbackLimiter.hit(ip)) {
+            return rejectTooMany(res, feedbackLimiter, ip, "제보가 너무 잦습니다. 잠시 후 다시 보내 주세요.");
+        }
 
+        const mode = (typeof appMode === 'string' && appMode) ? appMode.slice(0, 20) : "common";
+        const fp = (typeof fingerprint === 'string' && fingerprint) ? fingerprint.slice(0, 100) : "UNKNOWN";
         const stmt = db.prepare("INSERT INTO feedback (app_mode, message, fingerprint) VALUES (?, ?, ?)");
-        stmt.run(appMode || "common", message.trim(), fingerprint || "UNKNOWN");
+        stmt.run(mode, message.trim(), fp);
         res.json({ success: true });
     } catch (e) {
         console.error("제보 등록 오류:", e);
@@ -398,15 +505,28 @@ app.post('/api/feedback', (req, res) => {
     }
 });
 
-// 7. 사용자 활동 로그 수집 API
+// 8. 사용자 활동 로그 수집 API
+const LOG_DETAIL_MAX_LENGTH = 2000;
+
 app.post('/api/log', (req, res) => {
     try {
-        const { fingerprint, action, detail } = req.body;
-        if (!fingerprint || !action) {
+        const { fingerprint, action, detail } = req.body || {};
+        if (typeof fingerprint !== 'string' || !fingerprint || typeof action !== 'string' || !action) {
             return res.status(400).json({ error: "필수 정보가 누락되었습니다." });
         }
+        if (fingerprint.length > 100 || !/^[A-Z][A-Z0-9_]{0,39}$/.test(action)) {
+            return res.status(400).json({ error: "형식이 올바르지 않습니다." });
+        }
+        const ip = getClientIp(req);
+        if (!logLimiter.hit(ip)) {
+            return rejectTooMany(res, logLimiter, ip, "요청이 너무 많습니다.");
+        }
+
+        let detailText = JSON.stringify((detail && typeof detail === 'object') ? detail : {});
+        if (detailText.length > LOG_DETAIL_MAX_LENGTH) detailText = JSON.stringify({ truncated: true });
+
         const stmt = db.prepare("INSERT INTO activity_logs (fingerprint, action, detail) VALUES (?, ?, ?)");
-        stmt.run(fingerprint, action, JSON.stringify(detail || {}));
+        stmt.run(fingerprint, action, detailText);
         res.json({ success: true });
     } catch (e) {
         console.error("로그 수집 오류:", e);
@@ -414,59 +534,100 @@ app.post('/api/log', (req, res) => {
     }
 });
 
-// 8. 관리자 통계 조회 API
+// 9. 공지 조회 API (앱 상단 배너). 표시 중인 공지 중 가장 최근 것 1개
+app.get('/api/notice', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+        const row = db.prepare("SELECT id, message, level FROM notices WHERE active = 1 ORDER BY id DESC LIMIT 1").get();
+        res.json({ notice: row || null });
+    } catch (e) {
+        console.error("공지 조회 오류:", e);
+        res.json({ notice: null });
+    }
+});
+
+// 10. 관리자 API (/api/admin/*)
 // 비밀번호는 코드에 두지 않고 환경변수 ADMIN_PASSWORD로 받는다. 미설정이면 관리자 API는 비활성화된다.
+// 헤더(x-admin-key)로만 받는다. 주소(?key=)는 접속 기록과 브라우저 기록에 남으므로 받지 않는다.
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
-function isAdminAuthorized(req) {
-    if (!ADMIN_PASSWORD) return false;
-    const auth = req.headers['x-admin-key'] || req.query.key;
-    return auth === ADMIN_PASSWORD;
+function sha256(text) {
+    return crypto.createHash('sha256').update(String(text), 'utf8').digest();
 }
 
-app.get('/api/admin/stats', (req, res) => {
+const ADMIN_PASSWORD_HASH = ADMIN_PASSWORD ? sha256(ADMIN_PASSWORD) : null;
+
+// 길이가 달라도 같은 시간이 걸리도록 해시끼리 비교한다
+function matchesAdminPassword(candidate) {
+    if (!ADMIN_PASSWORD_HASH || typeof candidate !== 'string' || !candidate) return false;
+    return crypto.timingSafeEqual(sha256(candidate), ADMIN_PASSWORD_HASH);
+}
+
+// 한글처럼 헤더에 그대로 넣을 수 없는 비밀번호를 위해 관리자 화면은 encodeURIComponent로 보낸다.
+// 원문과 디코딩한 값을 모두 비교한다.
+function isAdminAuthorized(req) {
+    const raw = req.headers['x-admin-key'];
+    if (typeof raw !== 'string' || !raw) return false;
+    if (matchesAdminPassword(raw)) return true;
+    let decoded = raw;
+    try { decoded = decodeURIComponent(raw); } catch (e) { return false; }
+    return decoded !== raw && matchesAdminPassword(decoded);
+}
+
+app.use('/api/admin', (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    const ip = getClientIp(req);
+    if (adminFailLimiter.isBlocked(ip)) {
+        return rejectTooMany(res, adminFailLimiter, ip, "인증 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+    }
     if (!isAdminAuthorized(req)) {
+        adminFailLimiter.hit(ip);
         return res.status(401).json({ error: "관리자 인증 실패" });
     }
+    adminFailLimiter.reset(ip);
+    next();
+});
 
+// 10-1. 오늘 통계
+app.get('/api/admin/stats', (req, res) => {
     try {
         const todayDauRow = db.prepare(`
-            SELECT COUNT(DISTINCT fingerprint) AS cnt 
-            FROM activity_logs 
+            SELECT COUNT(DISTINCT fingerprint) AS cnt
+            FROM activity_logs
             WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
         `).get();
 
         const liveUsersRow = db.prepare(`
-            SELECT COUNT(DISTINCT fingerprint) AS cnt 
-            FROM activity_logs 
+            SELECT COUNT(DISTINCT fingerprint) AS cnt
+            FROM activity_logs
             WHERE created_at >= datetime('now', '-10 minutes')
         `).get();
 
         const totalUsersRow = db.prepare(`
-            SELECT COUNT(DISTINCT fingerprint) AS cnt 
+            SELECT COUNT(DISTINCT fingerprint) AS cnt
             FROM activity_logs
         `).get();
 
         const todayActionsRow = db.prepare(`
-            SELECT COUNT(*) AS cnt 
-            FROM activity_logs 
+            SELECT COUNT(*) AS cnt
+            FROM activity_logs
             WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
         `).get();
 
         const featureStats = db.prepare(`
             SELECT action, COUNT(*) AS total_calls, COUNT(DISTINCT fingerprint) AS unique_users
-            FROM activity_logs 
+            FROM activity_logs
             WHERE date(created_at, '+9 hours') = date('now', '+9 hours')
-            GROUP BY action 
+            GROUP BY action
             ORDER BY total_calls DESC
         `).all();
 
         const recentUsers = db.prepare(`
-            SELECT fingerprint, COUNT(*) AS total_events, 
-                   MAX(datetime(created_at, '+9 hours')) AS last_active 
-            FROM activity_logs 
-            GROUP BY fingerprint 
-            ORDER BY last_active DESC 
+            SELECT fingerprint, COUNT(*) AS total_events,
+                   MAX(datetime(created_at, '+9 hours')) AS last_active
+            FROM activity_logs
+            GROUP BY fingerprint
+            ORDER BY last_active DESC
             LIMIT 30
         `).all();
 
@@ -484,36 +645,383 @@ app.get('/api/admin/stats', (req, res) => {
     }
 });
 
-// 9. 개별 사용자 상세 타임라인 API
+// 10-2. 개별 사용자 상세 타임라인
 app.get('/api/admin/user-detail', (req, res) => {
-    if (!isAdminAuthorized(req)) {
-        return res.status(401).json({ error: "관리자 인증 실패" });
-    }
-
     const { fp } = req.query;
-    if (!fp) return res.status(400).json({ error: "식별자가 누락되었습니다." });
+    if (typeof fp !== 'string' || !fp || fp.length > 100) {
+        return res.status(400).json({ error: "식별자가 누락되었습니다." });
+    }
 
     try {
         const logs = db.prepare(`
-            SELECT action, detail, datetime(created_at, '+9 hours') AS kst_time 
-            FROM activity_logs 
-            WHERE fingerprint = ? 
-            ORDER BY created_at DESC 
+            SELECT action, detail, datetime(created_at, '+9 hours') AS kst_time
+            FROM activity_logs
+            WHERE fingerprint = ?
+            ORDER BY created_at DESC
             LIMIT 100
-        `).all();
+        `).all(fp);
 
         const summary = db.prepare(`
-            SELECT action, COUNT(*) AS cnt 
-            FROM activity_logs 
-            WHERE fingerprint = ? 
-            GROUP BY action 
+            SELECT action, COUNT(*) AS cnt
+            FROM activity_logs
+            WHERE fingerprint = ?
+            GROUP BY action
             ORDER BY cnt DESC
-        `).all();
+        `).all(fp);
 
         res.json({ logs, summary });
     } catch (e) {
         console.error("사용자 상세 조회 오류:", e);
         res.status(500).json({ error: "사용자 활동 내역 조회 실패" });
+    }
+});
+
+// 10-3. 기간별 추이 (한국 시간 기준 일별)
+app.get('/api/admin/trends', (req, res) => {
+    try {
+        const days = clampInt(req.query.days, 1, 90, 14);
+        const now = Date.now();
+        const dates = [];
+        for (let i = days - 1; i >= 0; i--) dates.push(kstDateString(now - i * 86400000));
+
+        // 한국 시간 첫날 0시를 UTC로 바꿔 비교한다(created_at 인덱스 사용)
+        const rows = db.prepare(`
+            SELECT date(created_at, '+9 hours') AS d,
+                   COUNT(DISTINCT fingerprint) AS users,
+                   COUNT(*) AS actions,
+                   SUM(action = 'START_EXAM') AS starts,
+                   SUM(action = 'SUBMIT_EXAM') AS submits
+            FROM activity_logs
+            WHERE created_at >= datetime(?, '-9 hours')
+            GROUP BY d
+        `).all(dates[0] + ' 00:00:00');
+
+        const byDate = new Map(rows.map(r => [r.d, r]));
+        res.json({
+            days,
+            items: dates.map(d => {
+                const r = byDate.get(d) || {};
+                return { date: d, users: r.users || 0, actions: r.actions || 0, starts: r.starts || 0, submits: r.submits || 0 };
+            })
+        });
+    } catch (e) {
+        console.error("관리자 추이 오류:", e);
+        res.status(500).json({ error: "추이 데이터 산출 실패" });
+    }
+});
+
+// 10-4. 콘텐츠 통계 (시험 시작·제출 로그 기준)
+const SESSION_KIND_LABELS = {
+    sequential: '순차 풀이',
+    subject: '과목 집중',
+    bookmark: '즐겨찾기·오답 노트',
+    target: '단일 문항',
+    cbt: '랜덤 모의고사',
+    all: '랜덤 모의고사'
+};
+
+function sessionKindLabel(year) {
+    if (year === null || year === undefined || year === '') return '미상';
+    return SESSION_KIND_LABELS[year] || '회차 풀이';
+}
+
+app.get('/api/admin/content', (req, res) => {
+    try {
+        const days = clampInt(req.query.days, 1, 365, 30);
+        const since = kstDateString(Date.now() - (days - 1) * 86400000) + ' 00:00:00';
+
+        const startRows = db.prepare(`
+            SELECT json_extract(detail, '$.cert') AS cert,
+                   json_extract(detail, '$.mode') AS mode,
+                   json_extract(detail, '$.year') AS year,
+                   COUNT(*) AS cnt
+            FROM activity_logs
+            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail)
+            GROUP BY cert, mode, year
+        `).all(since);
+
+        const submitRows = db.prepare(`
+            SELECT json_extract(detail, '$.cert') AS cert,
+                   json_extract(detail, '$.mode') AS mode,
+                   json_extract(detail, '$.year') AS year,
+                   COUNT(*) AS cnt,
+                   SUM(json_extract(detail, '$.score')) AS scoreSum,
+                   COUNT(json_extract(detail, '$.score')) AS scoreCnt,
+                   SUM(json_extract(detail, '$.isPassed') = 1) AS passed
+            FROM activity_logs
+            WHERE action = 'SUBMIT_EXAM' AND created_at >= datetime(?, '-9 hours') AND json_valid(detail)
+            GROUP BY cert, mode, year
+        `).all(since);
+
+        const usersRow = db.prepare(`
+            SELECT COUNT(DISTINCT fingerprint) AS cnt
+            FROM activity_logs
+            WHERE action = 'START_EXAM' AND created_at >= datetime(?, '-9 hours')
+        `).get(since);
+
+        const emptyBucket = () => ({ starts: 0, submits: 0, scoreSum: 0, scoreCnt: 0, passed: 0 });
+        const byCertMode = new Map();
+        const byKind = new Map();
+        const byRound = new Map();
+        const bucket = (map, key, extra) => {
+            if (!map.has(key)) map.set(key, Object.assign(emptyBucket(), extra));
+            return map.get(key);
+        };
+
+        startRows.forEach(r => {
+            const kind = sessionKindLabel(r.year);
+            bucket(byCertMode, `${r.cert}|${r.mode}`, { cert: r.cert || null, mode: r.mode || null }).starts += r.cnt;
+            bucket(byKind, kind, { kind }).starts += r.cnt;
+            if (kind === '회차 풀이') bucket(byRound, `${r.cert}|${r.mode}|${r.year}`, { cert: r.cert || null, mode: r.mode || null, year: r.year }).starts += r.cnt;
+        });
+        submitRows.forEach(r => {
+            const kind = sessionKindLabel(r.year);
+            const targets = [
+                bucket(byCertMode, `${r.cert}|${r.mode}`, { cert: r.cert || null, mode: r.mode || null }),
+                bucket(byKind, kind, { kind })
+            ];
+            if (kind === '회차 풀이') targets.push(bucket(byRound, `${r.cert}|${r.mode}|${r.year}`, { cert: r.cert || null, mode: r.mode || null, year: r.year }));
+            targets.forEach(t => {
+                t.submits += r.cnt;
+                t.scoreSum += r.scoreSum || 0;
+                t.scoreCnt += r.scoreCnt || 0;
+                t.passed += r.passed || 0;
+            });
+        });
+
+        const finish = b => {
+            const { scoreSum, scoreCnt, ...rest } = b;
+            return {
+                ...rest,
+                avgScore: scoreCnt ? Math.round((scoreSum / scoreCnt) * 10) / 10 : null,
+                passRate: b.submits ? Math.round((b.passed / b.submits) * 1000) / 10 : null
+            };
+        };
+        const byStartsDesc = (a, b) => (b.starts - a.starts) || (b.submits - a.submits);
+
+        res.json({
+            days,
+            examUsers: usersRow.cnt,
+            byCertMode: [...byCertMode.values()].map(finish).sort(byStartsDesc),
+            byKind: [...byKind.values()].map(finish).sort(byStartsDesc),
+            topRounds: [...byRound.values()].map(finish).sort(byStartsDesc).slice(0, 15)
+        });
+    } catch (e) {
+        console.error("관리자 콘텐츠 통계 오류:", e);
+        res.status(500).json({ error: "콘텐츠 통계 산출 실패" });
+    }
+});
+
+// 10-5. 서버 상태
+function countQuestions(file) {
+    try {
+        const arr = JSON.parse(fs.readFileSync(file, 'utf8'));
+        return Array.isArray(arr) ? arr.length : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function fileSize(file) {
+    try { return fs.statSync(file).size; } catch (e) { return 0; }
+}
+
+app.get('/api/admin/server', (req, res) => {
+    try {
+        const mem = process.memoryUsage();
+        const logInfo = db.prepare("SELECT COUNT(*) AS cnt, MIN(datetime(created_at, '+9 hours')) AS oldest FROM activity_logs").get();
+        const feedbackInfo = db.prepare("SELECT COUNT(*) AS cnt, SUM(status = 'open') AS open FROM feedback").get();
+        res.json({
+            startedAt: SERVER_STARTED_AT,
+            uptimeSec: Math.round(process.uptime()),
+            nodeVersion: process.version,
+            memory: { rss: mem.rss, heapUsed: mem.heapUsed },
+            sessions: { qnet: sessionStore.size, net2: getNet2SessionCount() },
+            questions: {
+                written: countQuestions(path.join(__dirname, 'data', 'written.json')),
+                practical: countQuestions(path.join(__dirname, 'data', 'practical.json')),
+                net2Written: countQuestions(path.join(__dirname, 'data', 'net2', 'written.json'))
+            },
+            db: {
+                sizeBytes: fileSize(dbPath) + fileSize(dbPath + '-wal'),
+                activityLogs: logInfo.cnt,
+                oldestLog: logInfo.oldest,
+                feedback: feedbackInfo.cnt || 0,
+                openFeedback: feedbackInfo.open || 0
+            }
+        });
+    } catch (e) {
+        console.error("서버 상태 조회 오류:", e);
+        res.status(500).json({ error: "서버 상태 조회 실패" });
+    }
+});
+
+// 10-6. 제보 목록과 처리 상태
+const FEEDBACK_PAGE_SIZE = 30;
+
+// 분류는 별도 컬럼 없이 메시지 앞의 [분류]에서 읽는다(기존 제보도 같은 방식으로 분류된다)
+function feedbackCategory(message) {
+    const m = /^\[([^\]\n]{1,20})\]/.exec(message || '');
+    return m ? m[1] : '분류 없음';
+}
+
+app.get('/api/admin/feedback', (req, res) => {
+    try {
+        const status = ['open', 'done'].includes(req.query.status) ? req.query.status : 'all';
+        const mode = typeof req.query.mode === 'string' ? req.query.mode.slice(0, 20) : '';
+        const category = typeof req.query.category === 'string' ? req.query.category.slice(0, 20) : '';
+        const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+        const page = clampInt(req.query.page, 1, 100000, 1);
+
+        const where = [];
+        const params = [];
+        if (status !== 'all') { where.push('status = ?'); params.push(status); }
+        if (mode) { where.push('app_mode = ?'); params.push(mode); }
+        if (q) {
+            where.push("message LIKE ? ESCAPE '\\'");
+            params.push('%' + q.replace(/[\\%_]/g, ch => '\\' + ch) + '%');
+        }
+
+        const rows = db.prepare(`
+            SELECT id, app_mode, message, fingerprint, status,
+                   datetime(created_at, '+9 hours') AS kst_time,
+                   datetime(handled_at, '+9 hours') AS handled_time
+            FROM feedback
+            ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+            ORDER BY id DESC
+        `).all(...params).map(r => ({ ...r, category: feedbackCategory(r.message) }));
+
+        const filtered = category ? rows.filter(r => r.category === category) : rows;
+        const totalPages = Math.max(1, Math.ceil(filtered.length / FEEDBACK_PAGE_SIZE));
+        const current = Math.min(page, totalPages);
+
+        const counts = db.prepare("SELECT SUM(status = 'open') AS open, SUM(status = 'done') AS done, COUNT(*) AS total FROM feedback").get();
+        const modes = db.prepare("SELECT DISTINCT app_mode FROM feedback ORDER BY app_mode").all().map(r => r.app_mode).filter(Boolean);
+        const categories = [...new Set(db.prepare("SELECT message FROM feedback").all().map(r => feedbackCategory(r.message)))].sort();
+
+        res.json({
+            items: filtered.slice((current - 1) * FEEDBACK_PAGE_SIZE, current * FEEDBACK_PAGE_SIZE),
+            total: filtered.length,
+            page: current,
+            totalPages,
+            counts: { open: counts.open || 0, done: counts.done || 0, total: counts.total || 0 },
+            modes,
+            categories
+        });
+    } catch (e) {
+        console.error("제보 목록 조회 오류:", e);
+        res.status(500).json({ error: "제보 목록 조회 실패" });
+    }
+});
+
+app.post('/api/admin/feedback/:id/status', (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const status = req.body && req.body.status;
+        if (!Number.isInteger(id) || id < 1 || !['open', 'done'].includes(status)) {
+            return res.status(400).json({ error: "요청 형식이 올바르지 않습니다." });
+        }
+        const info = db.prepare(`
+            UPDATE feedback
+            SET status = ?, handled_at = CASE WHEN ? = 'done' THEN CURRENT_TIMESTAMP ELSE NULL END
+            WHERE id = ?
+        `).run(status, status, id);
+        if (info.changes === 0) return res.status(404).json({ error: "제보를 찾을 수 없습니다." });
+        res.json({ success: true });
+    } catch (e) {
+        console.error("제보 상태 변경 오류:", e);
+        res.status(500).json({ error: "제보 상태 변경 실패" });
+    }
+});
+
+// 10-7. 공지 관리
+const NOTICE_LEVELS = ['info', 'warn'];
+const NOTICE_MAX_LENGTH = 300;
+
+app.get('/api/admin/notices', (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT id, message, level, active, datetime(created_at, '+9 hours') AS kst_time
+            FROM notices
+            ORDER BY id DESC
+            LIMIT 50
+        `).all();
+        res.json({ items: rows });
+    } catch (e) {
+        console.error("공지 목록 조회 오류:", e);
+        res.status(500).json({ error: "공지 목록 조회 실패" });
+    }
+});
+
+app.post('/api/admin/notices', (req, res) => {
+    try {
+        const message = typeof (req.body && req.body.message) === 'string' ? req.body.message.trim() : '';
+        const level = NOTICE_LEVELS.includes(req.body && req.body.level) ? req.body.level : 'info';
+        if (!message) return res.status(400).json({ error: "공지 내용을 입력해 주세요." });
+        if (message.length > NOTICE_MAX_LENGTH) return res.status(400).json({ error: `공지는 ${NOTICE_MAX_LENGTH}자 이내로 적어 주세요.` });
+        const info = db.prepare("INSERT INTO notices (message, level, active) VALUES (?, ?, 1)").run(message, level);
+        res.json({ success: true, id: Number(info.lastInsertRowid) });
+    } catch (e) {
+        console.error("공지 등록 오류:", e);
+        res.status(500).json({ error: "공지 등록 실패" });
+    }
+});
+
+app.post('/api/admin/notices/:id/active', (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const active = req.body && req.body.active;
+        if (!Number.isInteger(id) || id < 1 || typeof active !== 'boolean') {
+            return res.status(400).json({ error: "요청 형식이 올바르지 않습니다." });
+        }
+        const info = db.prepare("UPDATE notices SET active = ? WHERE id = ?").run(active ? 1 : 0, id);
+        if (info.changes === 0) return res.status(404).json({ error: "공지를 찾을 수 없습니다." });
+        res.json({ success: true });
+    } catch (e) {
+        console.error("공지 상태 변경 오류:", e);
+        res.status(500).json({ error: "공지 상태 변경 실패" });
+    }
+});
+
+app.delete('/api/admin/notices/:id', (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: "요청 형식이 올바르지 않습니다." });
+        const info = db.prepare("DELETE FROM notices WHERE id = ?").run(id);
+        if (info.changes === 0) return res.status(404).json({ error: "공지를 찾을 수 없습니다." });
+        res.json({ success: true });
+    } catch (e) {
+        console.error("공지 삭제 오류:", e);
+        res.status(500).json({ error: "공지 삭제 실패" });
+    }
+});
+
+// 10-8. 오래된 활동 로그 정리. dryRun이 false로 명시될 때만 실제로 지운다(기본은 개수만 확인).
+const LOG_RETENTION_MIN_DAYS = 30;
+const LOG_RETENTION_MAX_DAYS = 3650;
+
+app.post('/api/admin/logs/cleanup', (req, res) => {
+    try {
+        const days = parseInt(req.body && req.body.days, 10);
+        if (!Number.isInteger(days) || days < LOG_RETENTION_MIN_DAYS || days > LOG_RETENTION_MAX_DAYS) {
+            return res.status(400).json({ error: `보관 기간은 ${LOG_RETENTION_MIN_DAYS}~${LOG_RETENTION_MAX_DAYS}일 사이로 정해 주세요.` });
+        }
+        const cutoff = `-${days} days`;
+        if (!req.body || req.body.dryRun !== false) {
+            const target = db.prepare(`
+                SELECT COUNT(*) AS cnt,
+                       MIN(datetime(created_at, '+9 hours')) AS oldest,
+                       MAX(datetime(created_at, '+9 hours')) AS newest
+                FROM activity_logs
+                WHERE created_at < datetime('now', ?)
+            `).get(cutoff);
+            return res.json({ dryRun: true, days, count: target.cnt, oldest: target.oldest, newest: target.newest });
+        }
+        const info = db.prepare("DELETE FROM activity_logs WHERE created_at < datetime('now', ?)").run(cutoff);
+        res.json({ dryRun: false, days, deleted: info.changes });
+    } catch (e) {
+        console.error("로그 정리 오류:", e);
+        res.status(500).json({ error: "로그 정리 실패" });
     }
 });
 

@@ -363,11 +363,17 @@ function searchQuiz(req, res) {
     }
 }
 
+// 관리자 화면의 서버 상태 표시용 (메모리 세션 수)
+function getSessionCount() {
+    return net2SessionStore.size;
+}
+
 module.exports = {
     getRounds,
     getNewQuiz,
     checkAnswer,
     submitQuiz,
-    searchQuiz
+    searchQuiz,
+    getSessionCount
 };
 

@@ -12,7 +12,7 @@ Node.js(Express) 서버가 문제 데이터를 JSON으로 제공하고, 바닐�
 | 배포 | `main`에 push하면 GitHub Actions가 운영 서버(OCI)에 자동 배포하고 재시작한다 |
 | 문제 수 | 정처기 필기 1,900 · 정처기 실기 191 · 네트워크관리사 2급 필기 1,150 |
 | 사용자 기록 | 서버에 없다. 전부 브라우저 localStorage(즐겨찾기, 이력, 진행도) |
-| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-13 기준 `20261113_01`) |
+| 캐시 버전 | `public/index.html`의 `?v=YYYYMMDD_NN` (2026-11-16 기준 `20261116_01`) |
 | 문서 | 이 파일을 고치면 `CLAUDE.html`이 자동으로 다시 만들어진다(맨 아래 "문서 관리") |
 
 ## 최우선 규칙
@@ -65,9 +65,12 @@ node server.js     # 기본 포트 3000 (PORT 환경변수로 변경)
 
 - 접속: `http://localhost:3000`
 - **관리자 API는 환경변수 `ADMIN_PASSWORD`를 설정해야 켜진다.** 미설정이면 항상 401이다. 예: PowerShell `$env:ADMIN_PASSWORD="새비밀번호"; npm start`
+  - 관리자 화면은 `/admin.html`이다. 비밀번호는 브라우저 탭의 sessionStorage에만 두고, 탭을 닫으면 지워진다.
+- `DB_PATH` 환경변수로 DB 파일 위치를 바꿀 수 있다(테스트용. 운영은 기본값 `feedback.db`). 테스트 서버는 임시 폴더의 DB로 띄워 실제 `feedback.db`를 건드리지 않는다.
 - 이미 3000 포트를 쓰는 프로세스가 있으면 `EADDRINUSE` 오류로 서버가 바로 종료된다. 다른 포트(`$env:PORT=3001`)로 켜거나 기존 프로세스를 먼저 종료한다.
 - 세션은 서버 메모리(`Map`)에 저장된다. 서버를 재시작하면 진행 중인 시험의 정답 확인과 제출이 400 오류가 된다. (브라우저에 저장된 이어풀기 진행도는 그대로 남는다.)
-- **배포:** `.github/workflows/deploy.yml`. `main`에 push하면 운영 서버에서 `git pull` → `npm install --omit=dev` → `pm2 reload quiz-app`을 실행한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.
+- **배포:** `.github/workflows/deploy.yml`. `main`에 push하면 운영 서버에서 `git fetch` + `git reset --hard origin/main` → `npm install --omit=dev` → `pm2 reload quiz-app`을 실행한다. 배포 성공 여부는 GitHub Actions 실행 기록으로 확인한다.
+  - 2026-11-16에 `pull`을 `reset --hard`로 바꿨다. 이력을 다시 써도(강제 push) 배포되게 하기 위해서다. 운영 서버에서 git이 추적하는 파일을 직접 고치면 다음 배포 때 사라진다. `feedback.db`처럼 추적하지 않는 파일은 남는다.
 - 정적 파일은 `express.static`으로 서빙하고 `index.html`에 캐시 방지 헤더가 없다. 배포 후에도 브라우저가 옛 `index.html`을 쓰면 옛 `app.js`·`style.css`가 그대로 보인다.
 
 ## 구조
@@ -78,10 +81,12 @@ routes/net2.routes.js        /api/net2/* 라우팅
 controllers/net2.controller.js  네트워크관리사 2급 API
 lib/quiz-utils.js            두 서버가 공유하는 출제·채점 유틸 (셔플, 중복 제거, 즐겨찾기 id 정규화, 이어풀기 판별, 실기 채점)
 public/index.html, app.js, style.css   프런트엔드 (단일 페이지)
+public/admin.html            관리자 화면 (CSS·JS 내장 단일 파일)
+public/favicon.svg           브라우저 탭 아이콘
 data/written.json            정처기 필기 (1,900문항)
 data/practical.json          정처기 실기 (191문항)
 data/net2/written.json       네트워크관리사 2급 필기 (1,150문항, 23개 회차)
-feedback.db                  SQLite: 제보(feedback), 활동 로그(activity_logs)
+feedback.db                  SQLite: 제보(feedback, 처리 상태 status·handled_at), 활동 로그(activity_logs), 공지(notices)
 scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 .claude/settings.json        CLAUDE.md 수정 시 변환기를 실행하는 훅
 ```
@@ -104,6 +109,18 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 - **`POST /submit` 응답:** `score, total, isPassed, isGwarak, gwarakApplied, gwarakSubjects, reviewData`. `reviewData`에는 `type`, `subject`, `userAnswer`, `realAnswer`, `earnedScore`, `maxScore`가 있다. DB에는 아무것도 쓰지 않는다.
 - **`GET /search`:** 결과에 `type`을 보강해서 돌려준다(검색 결과에서 즐겨찾기할 때 필요).
 - 세션에는 `examLike`(랜덤·회차 풀이 여부)가 저장된다. 과락 판정에 쓴다.
+
+### 제보·로그·공지·관리자 API (`server.js`)
+
+- `POST /api/feedback`: 메시지 2,000자 이하, **IP당 10분 5건**(넘으면 429). `POST /api/log`: action은 대문자·`_`만, detail은 2,000자를 넘으면 `{"truncated":true}`로 저장, **IP당 1분 120건**.
+- 요청 제한은 패키지 없이 서버 메모리에서 센다(재시작하면 초기화). IP는 사설망·로컬 프록시를 거친 요청만 `X-Forwarded-For`의 마지막 값을 믿고, 그 외에는 접속 주소를 쓴다.
+- `GET /api/notice`: 표시 중인 공지 중 가장 최근 1개(`no-store`). 앱은 헤더 아래 배너로 보여 준다.
+- `/api/admin/*`: 비밀번호는 **헤더 `x-admin-key`로만** 받는다(`?key=`는 2026-11-16에 제거). 관리자 화면은 `encodeURIComponent`로 보내고 서버는 원문과 디코딩 값을 모두 비교한다(해시 후 `timingSafeEqual`). **인증 실패가 IP당 15분 10회면 맞는 비밀번호도 429**다.
+  - `stats`(오늘 통계), `user-detail?fp=`, `trends?days=`(KST 일별), `content?days=`(시험 시작·제출 로그 집계), `server`(가동 시간·메모리·세션 수·문항 수·DB 크기)
+  - `feedback`(목록·필터·페이지), `POST feedback/:id/status`(`open`/`done`). 제보 분류는 컬럼 없이 메시지 앞 `[분류]`에서 읽는다.
+  - `notices` 목록·등록(300자), `POST notices/:id/active`, `DELETE notices/:id`
+  - `POST logs/cleanup {days, dryRun}`: `dryRun: false`일 때만 실제로 지운다. 보관 기간 최소 30일. 자동 정리는 없다.
+- 콘텐츠 통계를 위해 `START_EXAM`에 `cert`, `SUBMIT_EXAM`에 `cert`·`year`를 남긴다(2026-11-16부터). 그 전 로그는 관리자 화면에서 "미상"으로 집계된다.
 
 ## 세션 종류별 동작
 
@@ -183,6 +200,7 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 | `이력_목록` | 제출한 풀이 기록. 문항별 `isRight`, `userAnswer`, `realAnswer`, `desc` 포함 | 사용자가 삭제 |
 | `순차풀이_중간저장` | 순차 풀이 위치와 답안 | 순차 풀이 제출 |
 | `회차풀이_중간저장` | 회차·랜덤 진행도 | 해당 회차 제출, ✕ 삭제 |
+| `cbt_notice_dismissed` (공통) | 사용자가 ✕로 닫은 공지 id | 다른 공지를 닫으면 덮어씀 |
 
 - 백업 파일에는 즐겨찾기, 이력, 순차 풀이 저장본이 들어간다. 복원할 때 다른 자격증 백업은 거부하고, 형식이 맞지 않는 항목은 제외한다. 회차 진행도는 백업 파일에 **포함되지 않는다**.
 
@@ -247,9 +265,10 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 | 설계 | 이어풀기 진행도는 기기·브라우저별이고 백업 파일에 포함되지 않는다. | 백업에 넣을지 결정 필요 |
 | 설계 | 정답 해설이 버튼 위에 나타나서 모바일에서 버튼이 아래로 밀린다. 해설을 버튼 아래로 옮기는 안이 있다. | 사용자 결정 필요 |
 | 설계 | My 탭 정답 보완과 오답 노트는 전용 API 없이 `bookmark` 세션을 빌려 쓴다. 서버 메모리에 쓰지 않는 세션이 남는다(세션이 500개를 넘으면 서버가 24시간 지난 것을 지운다). | 전용 조회 API를 만들면 정리된다 |
-| 보안 | 관리자 API는 헤더(`x-admin-key`) 외에 쿼리스트링(`?key=`)도 받는다(기존 호출 호환을 위해 유지). | 제거하려면 기존 호출 확인 필요 |
+| 보안 | 2026-11-16 이력에서 `feedback.db`를 지웠지만, 그 전에 저장소를 복제·포크한 사람에게는 남아 있고, GitHub에서도 옛 커밋 해시로 직접 접근하면 한동안 보일 수 있다. 그 시점의 제보·식별값은 이미 공개됐던 것으로 본다. | 완전 삭제는 GitHub 지원 요청 필요 |
+| 확인 | 요청 제한은 IP 기준이다. 운영 서버 앞에 공용 IP 프록시(Cloudflare 등)가 있으면 여러 사용자가 한 IP로 묶여 제한에 함께 걸릴 수 있다. | 운영 서버의 프록시 구성 확인 필요 |
 | 접근성 | 글자 대비 기준(WCAG AA 4.5:1) 미달 후보 약 29개 남음(주색 `#0284c7` 글자 4.1:1, 탭바, 다크 테마 붉은 글자 등). | 디자인 색상 체계 결정 필요 |
-| 기능 | 제보 "하루 최대 N개" 제한은 서버에 없다. 제보 분류를 별도 컬럼으로 저장하려면 `feedback.db` 변경(승인 필요)이 든다. | |
+| 기능 | 관리자 화면에 CSV 내보내기와 데이터 점검 리포트는 없다(2026-11-16 사용자가 제외). | |
 
 ## 보안·개인정보
 
@@ -278,14 +297,17 @@ scripts/build-claude-html.js CLAUDE.md → CLAUDE.html 변환기
 
 자세한 내용은 `git log`를 본다. 여기에는 다음 작업에 영향을 주는 것만 적는다.
 
+- **2026-11-16 이력 재작성:** 모든 커밋에서 `feedback.db*`를 빼고 강제 push했다. 그래서 2026-10-20 이후 커밋의 해시가 모두 바뀌었다(아래 표는 새 해시). 옛 이력은 로컬 브랜치 `backup/before-history-rewrite`에만 있다(push하지 않음). 다른 PC에 있는 옛 복제본은 `git fetch` 후 `git reset --hard origin/main`으로 맞춰야 한다.
+
 | 커밋 | 내용 |
 |---|---|
-| `6650b05` | 네트워크관리사 데이터: 2026년 1~4회 추가(950→1,150), **id 1~1150 재부여**, 지문형 문제 줄바꿈 정리 |
-| `81e9277` | QA 결함 일괄 수정: 즐겨찾기 모의고사 0문항, 네트워크관리사 점수 환산, 정처기 과락, 실기 `\|` 채점, 랜덤 중복 제거, 관리자 비밀번호 환경변수화, 정답 확인 경쟁 상태, 입력값 이스케이프, 제보하기 팝업, 회차 풀이 이어풀기 등 |
-| `fb5f371` | "이어서 풀기" 카드, 랜덤 모의고사 진행도, 새로고침 시 풀이 복원, 좁은 화면 검색 버튼 이탈 |
-| `e9a0ebb` | 정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거 |
-| `d70fbe1` | `html, body` 폭 지정. `body`가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인 |
+| `bca7bf1` | 네트워크관리사 데이터: 2026년 1~4회 추가(950→1,150), **id 1~1150 재부여**, 지문형 문제 줄바꿈 정리 |
+| `b76fa9d` | QA 결함 일괄 수정: 즐겨찾기 모의고사 0문항, 네트워크관리사 점수 환산, 정처기 과락, 실기 `\|` 채점, 랜덤 중복 제거, 관리자 비밀번호 환경변수화, 정답 확인 경쟁 상태, 입력값 이스케이프, 제보하기 팝업, 회차 풀이 이어풀기 등 |
+| `249c534` | "이어서 풀기" 카드, 랜덤 모의고사 진행도, 새로고침 시 풀이 복원, 좁은 화면 검색 버튼 이탈 |
+| `e9f35c7` | 정답 미리 받기로 지연 제거, 정답 확인 후 자동 스크롤 제거 |
+| `59aa2c5` | `html, body` 폭 지정. `body`가 내용물 폭만큼 줄어들어 짧은 문제와 빈 My·분석 탭에서 앱이 좁아지던 문제(392px 폰에서 289px 등)의 원인 |
 | 2026-11-13 | 분석 탭 오답 노트, 이력 "틀린 문제만 보기" 필터, My 탭 보기 표시와 정답·해설 보완, `CLAUDE.html` 변환기와 훅 (커밋 "오답 노트·이력 필터·My 탭 정답 표시 추가") |
+| 2026-11-16 | 탭 아이콘, 관리자 화면(`admin.html`), `user-detail` SQL 바인딩 누락(항상 500) 수정, 관리자 인증 강화(`?key=` 제거·실패 잠금), 제보·로그 요청 제한, 제보 처리 상태, 기간별 추이·콘텐츠 통계·서버 상태, 공지 배너, 로그 정리 |
 
 ## 문서 관리
 

@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>관리자 · IT 자격증 스마트 CBT</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <script>
+        // 앱에서 고른 테마를 따른다(읽기만 한다)
+        try {
+            var savedTheme = localStorage.getItem("cbt_theme");
+            if (savedTheme === "dark" || savedTheme === "light") document.documentElement.setAttribute("data-theme", savedTheme);
+        } catch (e) {}
+    </script>
+    <style>
+        :root {
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --sub: #f8fafc;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --muted: #475569;
+            --primary: #0369a1;
+            --on-primary: #ffffff;
+            --primary-bg: #e0f2fe;
+            --ok: #15803d;
+            --ok-bg: #dcfce7;
+            --warn-bg: #fef3c7;
+            --warn-text: #78350f;
+            --danger: #b91c1c;
+            --danger-bg: #fee2e2;
+            --grid: #e2e8f0;
+            --chart-bar: #0284c7;
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0b1120;
+                --card: #162032;
+                --sub: #0f172a;
+                --border: #24344d;
+                --text: #e2e8f0;
+                --muted: #94a3b8;
+                --primary: #38bdf8;
+                --on-primary: #0f172a;
+                --primary-bg: #0c4a6e;
+                --ok: #4ade80;
+                --ok-bg: #14532d;
+                --warn-bg: #422006;
+                --warn-text: #fde68a;
+                --danger: #f87171;
+                --danger-bg: #450a0a;
+                --grid: #24344d;
+                --chart-bar: #38bdf8;
+                color-scheme: dark;
+            }
+        }
+        :root[data-theme="dark"] {
+            --bg: #0b1120;
+            --card: #162032;
+            --sub: #0f172a;
+            --border: #24344d;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --primary: #38bdf8;
+            --on-primary: #0f172a;
+            --primary-bg: #0c4a6e;
+            --ok: #4ade80;
+            --ok-bg: #14532d;
+            --warn-bg: #422006;
+            --warn-text: #fde68a;
+            --danger: #f87171;
+            --danger-bg: #450a0a;
+            --grid: #24344d;
+            --chart-bar: #38bdf8;
+            color-scheme: dark;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; width: 100%; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        [hidden] { display: none !important; }
+        .wrap { max-width: 960px; margin: 0 auto; padding: 16px; }
+        .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+        .top h1 { font-size: 18px; margin: 0; }
+        .top-actions { display: flex; gap: 6px; }
+
+        button, select, input, textarea { font: inherit; color: inherit; }
+        input, select, textarea { font-size: 16px; } /* iOS 자동 확대 방지 */
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn:hover { border-color: var(--primary); }
+        .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
+        .btn.danger { color: var(--danger); }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+        .btn.small { padding: 3px 8px; font-size: 13px; }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            min-width: 0;
+        }
+        .card h2 { font-size: 15px; margin: 0 0 10px; }
+        .card h3 { font-size: 14px; margin: 14px 0 6px; }
+        .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .card-head h2 { margin: 0; }
+        .note { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+        .msg { min-height: 0; margin: 8px 0 0; font-size: 13px; }
+        .msg:empty { display: none; }
+        .msg.error { color: var(--danger); }
+        .msg.ok { color: var(--ok); }
+
+        .login { max-width: 380px; margin: 40px auto; }
+        .login form { display: flex; flex-direction: column; gap: 8px; }
+        .login input { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--sub); min-width: 0; }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tabs button {
+            border: none;
+            background: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            color: var(--muted);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .tabs button.active { color: var(--text); font-weight: 700; border-bottom-color: var(--primary); }
+        .badge {
+            display: inline-block;
+            min-width: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: var(--danger-bg);
+            color: var(--danger);
+            font-size: 11.5px;
+            font-weight: 700;
+            text-align: center;
+        }
+        .badge:empty { display: none; }
+
+        .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .tile { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+        .tile-label { color: var(--muted); font-size: 12.5px; }
+        .tile-value { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip {
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 999px;
+            padding: 3px 10px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .chip.active { background: var(--primary-bg); border-color: var(--primary); font-weight: 600; }
+        .tag {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: var(--sub);
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .tag.open { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+        .tag.done { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+        .tag.warn { background: var(--warn-bg); color: var(--warn-text); border-color: transparent; }
+        .tag.on { background: var(--primary-bg); color: var(--text); border-color: var(--primary); }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        td.empty { color: var(--muted); text-align: center; padding: 16px; }
+        .mono { font-family: Consolas, 'SFMono-Regular', monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+        /* 좁은 화면에서는 칸을 줄바꿈하지 않고 표를 가로로 스크롤한다. 긴 내용 칸(.mono)만 줄바꿈 */
+        .table-wrap td { white-space: nowrap; }
+        .table-wrap td.mono { white-space: normal; min-width: 180px; }
+
+        .chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        @media (min-width: 769px) { .chart-grid { grid-template-columns: 1fr 1fr; } }
+        .chart-title { font-weight: 600; font-size: 13.5px; }
+        .chart-sub { color: var(--muted); font-size: 12.5px; margin-bottom: 4px; }
+        .chart { position: relative; width: 100%; min-width: 0; }
+        .chart svg { display: block; }
+        .chart .grid { stroke: var(--grid); stroke-width: 1; }
+        .chart .axis { fill: var(--muted); font-size: 11px; }
+        .chart .bar { fill: var(--chart-bar); transition: opacity 0.12s; }
+        .chart svg.hovering .bar:not(.on) { opacity: 0.4; }
+        .chart .hit { fill: transparent; cursor: default; outline: none; }
+        .chart-tip {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            background: var(--text);
+            color: var(--card);
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        details summary { cursor: pointer; color: var(--primary); font-size: 13px; margin-top: 8px; }
+
+        .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .filters select, .filters input {
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--sub);
+            min-width: 0;
+        }
+        .filters input { flex: 1 1 160px; }
+        .search-row { display: flex; gap: 6px; flex: 1 1 240px; min-width: 0; }
+
+        .fb-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--card); }
+        .fb-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 12.5px; }
+        .fb-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+        .fb-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
+        .pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 8px; }
+
+        .notice-form { display: flex; flex-direction: column; gap: 8px; }
+        .notice-form textarea { padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--sub); resize: vertical; min-width: 0; }
+        .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .row select, .row input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--sub); }
+        .row input[type="number"] { width: 100px; }
+        .notice-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+        .notice-text { white-space: pre-line; overflow-wrap: anywhere; margin: 6px 0; }
+
+        .kv { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 4px 12px; font-size: 13px; }
+        .kv dt { color: var(--muted); }
+        .kv dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+        .link-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header class="top">
+        <h1>관리자</h1>
+        <div class="top-actions" id="top-actions" hidden>
+            <button type="button" class="btn" id="refresh-btn">새로고침</button>
+            <button type="button" class="btn" id="logout-btn">로그아웃</button>
+        </div>
+    </header>
+
+    <section id="login-view" class="card login" hidden>
+        <h2>관리자 로그인</h2>
+        <form id="login-form">
+            <label for="login-pw">비밀번호</label>
+            <input id="login-pw" type="password" autocomplete="current-password" required>
+            <button type="submit" class="btn primary" id="login-btn">로그인</button>
+        </form>
+        <p id="login-msg" class="msg error" role="alert"></p>
+        <p class="note">서버에 ADMIN_PASSWORD 환경변수가 설정되어 있어야 로그인할 수 있습니다. 비밀번호는 이 탭을 닫으면 지워집니다.</p>
+    </section>
+
+    <div id="app-view" hidden>
+        <nav class="tabs" aria-label="관리자 메뉴">
+            <button type="button" data-tab="overview" class="active">개요</button>
+            <button type="button" data-tab="feedback">제보 <span id="open-badge" class="badge"></span></button>
+            <button type="button" data-tab="users">사용자</button>
+            <button type="button" data-tab="notices">공지</button>
+            <button type="button" data-tab="server">서버·로그</button>
+        </nav>
+
+        <!-- 개요 -->
+        <section data-panel="overview">
+            <p class="msg error" id="overview-msg" role="alert"></p>
+            <div class="tiles" id="stat-tiles"></div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h2>기간별 추이</h2>
+                    <div class="chips" id="trend-days" role="group" aria-label="기간">
+                        <button type="button" class="chip active" data-days="7">7일</button>
+                        <button type="button" class="chip" data-days="14">14일</button>
+                        <button type="button" class="chip" data-days="30">30일</button>
+                    </div>
+                </div>
+                <div class="chart-grid">
+                    <div>
+                        <div class="chart-title">일별 방문자</div>
+                        <div class="chart-sub" id="chart-users-sub"></div>
+                        <div class="chart" id="chart-users"></div>
+                    </div>
+                    <div>
+                        <div class="chart-title">일별 시험 제출</div>
+                        <div class="chart-sub" id="chart-submits-sub"></div>
+                        <div class="chart" id="chart-submits"></div>
+                    </div>
+                </div>
+                <details>
+                    <summary>표로 보기</summary>
+                    <div class="table-wrap" id="trend-table"></div>
+                </details>
+                <p class="note">한국 시간 기준. 방문자는 하루 동안 활동한 기기 수입니다.</p>
+            </div>
+
+            <div class="card">
+                <h2>오늘 기능별 사용</h2>
+                <div class="table-wrap" id="feature-table"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h2>콘텐츠 통계</h2>
+                    <div class="chips" id="content-days" role="group" aria-label="기간">
+                        <button type="button" class="chip" data-days="7">7일</button>
+                        <button type="button" class="chip active" data-days="30">30일</button>
+                        <button type="button" class="chip" data-days="90">90일</button>
+                    </div>
+                </div>
+                <p class="note" id="content-users"></p>
+                <h3>자격증·과목별</h3>
+                <div class="table-wrap" id="content-cert"></div>
+                <h3>풀이 방식별</h3>
+                <div class="table-wrap" id="content-kind"></div>
+                <h3>많이 푼 회차 (상위 15)</h3>
+                <div class="table-wrap" id="content-rounds"></div>
+                <p class="note">시험 시작·제출 기록 기준. 자격증과 회차 정보는 이번 업데이트 이후 기록부터 남으므로, 그 전 기록은 "미상"으로 집계됩니다.</p>
+            </div>
+        </section>
+
+        <!-- 제보 -->
+        <section data-panel="feedback" hidden>
+            <div class="card">
+                <div class="card-head">
+                    <h2>제보</h2>
+                    <span class="note" id="fb-counts"></span>
+                </div>
+                <form class="filters" id="fb-filters">
+                    <select id="fb-status" aria-label="처리 상태">
+                        <option value="open">미처리</option>
+                        <option value="done">처리완료</option>
+                        <option value="all">전체</option>
+                    </select>
+                    <select id="fb-category" aria-label="분류"><option value="">모든 분류</option></select>
+                    <select id="fb-mode" aria-label="모드"><option value="">모든 모드</option></select>
+                    <div class="search-row">
+                        <input id="fb-q" type="search" placeholder="내용 검색" aria-label="내용 검색">
+                        <button type="submit" class="btn">검색</button>
+                    </div>
+                </form>
+                <p class="msg error" id="fb-msg" role="alert"></p>
+                <div id="fb-list"></div>
+                <div class="pager" id="fb-pager"></div>
+            </div>
+        </section>
+
+        <!-- 사용자 -->
+        <section data-panel="users" hidden>
+            <div class="card">
+                <h2>사용자 조회</h2>
+                <form class="filters" id="user-form">
+                    <div class="search-row">
+                        <input id="user-fp" type="search" placeholder="식별값 (FP_...)" aria-label="사용자 식별값">
+                        <button type="submit" class="btn">조회</button>
+                    </div>
+                </form>
+                <p class="msg error" id="user-msg" role="alert"></p>
+                <div id="user-detail"></div>
+            </div>
+            <div class="card">
+                <h2>최근 활동한 사용자 (30명)</h2>
+                <div class="table-wrap" id="recent-users"></div>
+                <p class="note">식별값은 브라우저 정보로 만든 값이라 같은 기종·브라우저를 쓰는 서로 다른 사람이 같은 값으로 묶일 수 있습니다.</p>
+            </div>
+        </section>
+
+        <!-- 공지 -->
+        <section data-panel="notices" hidden>
+            <div class="card">
+                <h2>새 공지</h2>
+                <form class="notice-form" id="notice-form">
+                    <textarea id="notice-text" rows="3" maxlength="300" placeholder="앱 상단에 보여 줄 공지 (300자 이내)" aria-label="공지 내용"></textarea>
+                    <div class="row">
+                        <select id="notice-level" aria-label="공지 종류">
+                            <option value="info">안내</option>
+                            <option value="warn">주의</option>
+                        </select>
+                        <button type="submit" class="btn primary">등록</button>
+                        <span class="note" id="notice-count">0 / 300</span>
+                    </div>
+                </form>
+                <p class="msg" id="notice-msg" role="alert"></p>
+                <p class="note">앱에는 표시 중인 공지 중 가장 최근 1개만 보입니다. 사용자가 ✕로 닫은 공지는 그 브라우저에서 다시 보이지 않습니다.</p>
+            </div>
+            <div class="card">
+                <h2>공지 목록</h2>
+                <div id="notice-list"></div>
+            </div>
+        </section>
+
+        <!-- 서버·로그 -->
+        <section data-panel="server" hidden>
+            <div class="card">
+                <h2>서버 상태</h2>
+                <p class="msg error" id="server-msg" role="alert"></p>
+                <dl class="kv" id="server-info"></dl>
+            </div>
+            <div class="card">
+                <h2>오래된 활동 로그 정리</h2>
+                <div class="row">
+                    <label for="cleanup-days">보관 기간</label>
+                    <input id="cleanup-days" type="number" min="30" max="3650" value="90">
+                    <span>일</span>
+                    <button type="button" class="btn" id="cleanup-check">삭제 대상 확인</button>
+                    <button type="button" class="btn danger" id="cleanup-run" disabled>삭제</button>
+                </div>
+                <p class="msg" id="cleanup-msg" role="status"></p>
+                <p class="note">보관 기간보다 오래된 활동 로그만 지웁니다(최소 30일). 제보와 공지는 지우지 않습니다. 지운 뒤에도 DB 파일 크기는 바로 줄지 않고, 빈 공간을 다음 기록에 다시 씁니다.</p>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const KEY_STORE = "cbt_admin_key";
+    const ACTION_LABELS = {
+        MAIN_PAGE_VIEW: "첫 화면 방문",
+        CERT_SWITCH: "자격증 전환",
+        MODE_SELECT: "모드 선택",
+        MODE_SWITCH: "모드 전환",
+        START_EXAM: "시험 시작",
+        SUBMIT_EXAM: "시험 제출",
+        INSTANT_CHECK_ANSWER: "정답 확인",
+        SEARCH: "검색",
+        FEEDBACK_SENT: "제보 전송",
+        BACKUP_DATA: "백업",
+        RESTORE_DATA: "복원",
+        THEME_TOGGLE: "테마 전환"
+    };
+    const CERT_LABELS = { qnet: "정보처리기사", net2: "네트워크관리사 2급" };
+    const MODE_LABELS = { written: "필기", practical: "실기", common: "공통" };
+
+    let adminKey = "";
+    let currentTab = "overview";
+    let trendDays = 7;
+    let contentDays = 30;
+    let fbPage = 1;
+    let latestRecentUsers = [];
+    let cleanupCheckedDays = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+    const fmt = (n) => (n === null || n === undefined) ? "-" : Number(n).toLocaleString("ko-KR");
+    const certLabel = (c) => CERT_LABELS[c] || "미상";
+    const modeLabel = (m) => MODE_LABELS[m] || (m ? m : "미상");
+    const actionLabel = (a) => ACTION_LABELS[a] || a;
+    const shortDate = (d) => { const p = String(d).split("-"); return p.length === 3 ? `${+p[1]}/${+p[2]}` : d; };
+
+    function setMsg(id, text, kind) {
+        const el = $(id);
+        if (!el) return;
+        el.textContent = text || "";
+        el.classList.remove("error", "ok");
+        if (kind) el.classList.add(kind);
+    }
+
+    function loadKey() { try { return sessionStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; } }
+    function saveKey(k) { try { if (k) sessionStorage.setItem(KEY_STORE, k); else sessionStorage.removeItem(KEY_STORE); } catch (e) {} }
+
+    class ApiError extends Error {
+        constructor(status, message) { super(message); this.status = status; }
+    }
+
+    async function api(path, opts) {
+        opts = opts || {};
+        const headers = { "x-admin-key": encodeURIComponent(adminKey) };
+        if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+        let res;
+        try {
+            res = await fetch(path, {
+                method: opts.method || "GET",
+                headers,
+                body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+                cache: "no-store"
+            });
+        } catch (e) {
+            throw new ApiError(0, "서버에 연결하지 못했습니다.");
+        }
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+            showLogin("비밀번호가 맞지 않거나 서버에 ADMIN_PASSWORD가 설정되지 않았습니다.");
+            throw new ApiError(401, "인증 실패");
+        }
+        if (res.status === 429) {
+            const sec = parseInt(res.headers.get("Retry-After") || "0", 10);
+            const wait = sec > 0 ? ` (${Math.ceil(sec / 60)}분 후 다시 시도)` : "";
+            throw new ApiError(429, (data.error || "요청이 너무 많습니다.") + wait);
+        }
+        if (!res.ok) throw new ApiError(res.status, data.error || `요청 실패 (${res.status})`);
+        return data;
+    }
+
+    // ---------- 로그인 ----------
+    function showLogin(message) {
+        adminKey = "";
+        saveKey("");
+        $("app-view").hidden = true;
+        $("top-actions").hidden = true;
+        $("login-view").hidden = false;
+        setMsg("login-msg", message || "", "error");
+        $("login-pw").value = "";
+        $("login-pw").focus();
+    }
+
+    function showApp() {
+        $("login-view").hidden = true;
+        $("app-view").hidden = false;
+        $("top-actions").hidden = false;
+        switchTab(currentTab);
+    }
+
+    async function tryLogin(key) {
+        adminKey = key;
+        try {
+            const stats = await api("/api/admin/stats");
+            saveKey(key);
+            showApp();
+            renderStats(stats);
+            return true;
+        } catch (e) {
+            if (e.status !== 401) showLogin(e.message);
+            return false;
+        }
+    }
+
+    $("login-form").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const pw = $("login-pw").value;
+        if (!pw) return;
+        $("login-btn").disabled = true;
+        setMsg("login-msg", "");
+        await tryLogin(pw);
+        $("login-btn").disabled = false;
+    });
+
+    $("logout-btn").addEventListener("click", () => showLogin(""));
+    $("refresh-btn").addEventListener("click", () => loadTab(currentTab));
+
+    // ---------- 탭 ----------
+    document.querySelectorAll(".tabs button").forEach(btn => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+        document.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.dataset.panel !== tab; });
+        loadTab(tab);
+    }
+
+    function loadTab(tab) {
+        if (tab === "overview") loadOverview();
+        else if (tab === "feedback") loadFeedback();
+        else if (tab === "users") loadUsers();
+        else if (tab === "notices") loadNotices();
+        else if (tab === "server") loadServer();
+    }
+
+    // ---------- 개요 ----------
+    function renderStats(stats) {
+        $("stat-tiles").innerHTML = [
+            ["오늘 방문자", stats.todayDau],
+            ["지금 접속 (최근 10분)", stats.liveUsers],
+            ["누적 사용자", stats.totalUsers],
+            ["오늘 활동 수", stats.todayActions]
+        ].map(([label, value]) => `
+            <div class="tile"><div class="tile-label">${escapeHtml(label)}</div><div class="tile-value">${fmt(value)}</div></div>
+        `).join("");
+
+        const rows = (stats.featureStats || []).map(f => `
+            <tr><td>${escapeHtml(actionLabel(f.action))}</td><td class="num">${fmt(f.total_calls)}</td><td class="num">${fmt(f.unique_users)}</td></tr>
+        `).join("");
+        $("feature-table").innerHTML = `
+            <table><thead><tr><th>기능</th><th class="num">횟수</th><th class="num">사용자</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="3" class="empty">오늘 기록이 없습니다.</td></tr>'}</tbody></table>`;
+
+        latestRecentUsers = stats.recentUsers || [];
+    }
+
+    async function loadOverview() {
+        setMsg("overview-msg", "");
+        try {
+            const [stats, trends, content] = await Promise.all([
+                api("/api/admin/stats"),
+                api(`/api/admin/trends?days=${trendDays}`),
+                api(`/api/admin/content?days=${contentDays}`)
+            ]);
+            renderStats(stats);
+            renderTrends(trends);
+            renderContent(content);
+        } catch (e) {
+            if (e.status !== 401) setMsg("overview-msg", e.message, "error");
+        }
+        refreshOpenBadge();
+    }
+
+    function bindDayChips(groupId, onPick) {
+        $(groupId).querySelectorAll(".chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+                $(groupId).querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c === chip));
+                onPick(parseInt(chip.dataset.days, 10));
+            });
+        });
+    }
+
+    bindDayChips("trend-days", async (days) => {
+        trendDays = days;
+        try { renderTrends(await api(`/api/admin/trends?days=${days}`)); }
+        catch (e) { if (e.status !== 401) setMsg("overview-msg", e.message, "error"); }
+    });
+    bindDayChips("content-days", async (days) => {
+        contentDays = days;
+        try { renderContent(await api(`/api/admin/content?days=${days}`)); }
+        catch (e) { if (e.status !== 401) setMsg("overview-msg", e.message, "error"); }
+    });
+
+    // 단일 시리즈 막대 차트 (축 1개, 주색 하나, 막대마다 툴팁)
+    const charts = {};
+
+    function niceMax(v) {
+        if (v <= 2) return 2;
+        const p = Math.pow(10, Math.floor(Math.log10(v)));
+        for (const m of [1, 2, 4, 6, 8, 10]) {
+            if (m * p >= v) return m * p;
+        }
+        return 10 * p;
+    }
+
+    // 위쪽 모서리만 둥근 막대 (아래는 기준선에 붙는다)
+    function barPath(x, y, w, h) {
+        const r = Math.min(4, w / 2, h);
+        return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`;
+    }
+
+    function drawChart(id) {
+        const st = charts[id];
+        const box = $(id);
+        if (!st || !box || box.offsetParent === null) return;
+        const W = Math.max(240, Math.floor(box.clientWidth));
+        const H = 170;
+        const padL = 34, padR = 6, padT = 10, padB = 24;
+        const items = st.items;
+        const n = items.length;
+        const top = niceMax(Math.max(0, ...items.map(d => d[st.key])));
+        const plotW = W - padL - padR;
+        const plotH = H - padT - padB;
+        const step = plotW / n;
+        const barW = Math.max(2, Math.min(28, step - 2));
+        const yOf = (v) => padT + plotH - (v / top) * plotH;
+        const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 44))));
+
+        let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(st.title)} 막대 차트">`;
+        [0, top / 2, top].forEach(v => {
+            const yy = Math.round(yOf(v)) + 0.5;
+            svg += `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}"/>`;
+            svg += `<text class="axis" x="${padL - 6}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`;
+        });
+        items.forEach((d, i) => {
+            const v = d[st.key];
+            const cx = padL + step * i + step / 2;
+            if (v > 0) {
+                const yTop = yOf(v);
+                svg += `<path class="bar" data-i="${i}" d="${barPath(cx - barW / 2, yTop, barW, padT + plotH - yTop)}"/>`;
+            }
+            if (i % every === (n - 1) % every) {
+                svg += `<text class="axis" x="${cx}" y="${H - 7}" text-anchor="middle">${escapeHtml(shortDate(d.date))}</text>`;
+            }
+        });
+        items.forEach((d, i) => {
+            svg += `<rect class="hit" data-i="${i}" x="${padL + step * i}" y="${padT}" width="${step}" height="${plotH}" tabindex="0" aria-label="${escapeHtml(shortDate(d.date))} ${fmt(d[st.key])}${escapeHtml(st.unit)}"/>`;
+        });
+        svg += `</svg><div class="chart-tip" hidden></div>`;
+        box.innerHTML = svg;
+
+        const svgEl = box.querySelector("svg");
+        const tip = box.querySelector(".chart-tip");
+        const show = (i) => {
+            const d = items[i];
+            if (!d) return;
+            const v = d[st.key];
+            const cx = padL + step * i + step / 2;
+            tip.textContent = `${shortDate(d.date)} · ${fmt(v)}${st.unit}`;
+            tip.hidden = false;
+            const half = tip.offsetWidth / 2;
+            tip.style.left = Math.min(W - half, Math.max(half, cx)) + "px";
+            tip.style.top = Math.max(tip.offsetHeight, yOf(v) - 6) + "px";
+            svgEl.classList.add("hovering");
+            svgEl.querySelectorAll(".bar").forEach(b => b.classList.toggle("on", b.dataset.i === String(i)));
+        };
+        const hide = () => {
+            tip.hidden = true;
+            svgEl.classList.remove("hovering");
+            svgEl.querySelectorAll(".bar.on").forEach(b => b.classList.remove("on"));
+        };
+        svgEl.querySelectorAll(".hit").forEach(hit => {
+            const i = parseInt(hit.dataset.i, 10);
+            hit.addEventListener("pointerenter", () => show(i));
+            hit.addEventListener("focus", () => show(i));
+            hit.addEventListener("blur", hide);
+        });
+        svgEl.addEventListener("pointerleave", hide);
+    }
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => Object.keys(charts).forEach(drawChart), 150);
+    });
+
+    function renderTrends(data) {
+        const items = data.items || [];
+        charts["chart-users"] = { items, key: "users", unit: "명", title: "일별 방문자" };
+        charts["chart-submits"] = { items, key: "submits", unit: "회", title: "일별 시험 제출" };
+        drawChart("chart-users");
+        drawChart("chart-submits");
+
+        const n = items.length || 1;
+        const avg = (key) => Math.round(items.reduce((s, d) => s + d[key], 0) / n * 10) / 10;
+        const peak = items.reduce((best, d) => (d.users > (best ? best.users : -1) ? d : best), null);
+        $("chart-users-sub").textContent = `일평균 ${fmt(avg("users"))}명` + (peak && peak.users > 0 ? ` · 최대 ${fmt(peak.users)}명 (${shortDate(peak.date)})` : "");
+        const totalSubmits = items.reduce((s, d) => s + d.submits, 0);
+        $("chart-submits-sub").textContent = `합계 ${fmt(totalSubmits)}회 · 일평균 ${fmt(avg("submits"))}회`;
+
+        $("trend-table").innerHTML = `
+            <table><thead><tr><th>날짜</th><th class="num">방문자</th><th class="num">활동</th><th class="num">시험 시작</th><th class="num">시험 제출</th></tr></thead>
+            <tbody>${items.slice().reverse().map(d => `
+                <tr><td>${escapeHtml(d.date)}</td><td class="num">${fmt(d.users)}</td><td class="num">${fmt(d.actions)}</td><td class="num">${fmt(d.starts)}</td><td class="num">${fmt(d.submits)}</td></tr>
+            `).join("")}</tbody></table>`;
+    }
+
+    function statCells(r) {
+        return `<td class="num">${fmt(r.starts)}</td><td class="num">${fmt(r.submits)}</td>
+            <td class="num">${r.avgScore === null ? "-" : fmt(r.avgScore) + "점"}</td>
+            <td class="num">${r.passRate === null ? "-" : fmt(r.passRate) + "%"}</td>`;
+    }
+    const statHead = `<th class="num">시작</th><th class="num">제출</th><th class="num">평균 점수</th><th class="num">합격률</th>`;
+    const emptyRow = (cols) => `<tr><td colspan="${cols}" class="empty">기록이 없습니다.</td></tr>`;
+
+    function renderContent(data) {
+        $("content-users").textContent = `최근 ${data.days}일 동안 시험을 시작한 사용자 ${fmt(data.examUsers)}명`;
+        $("content-cert").innerHTML = `
+            <table><thead><tr><th>자격증</th><th>구분</th>${statHead}</tr></thead>
+            <tbody>${(data.byCertMode || []).map(r => `
+                <tr><td>${escapeHtml(certLabel(r.cert))}</td><td>${escapeHtml(modeLabel(r.mode))}</td>${statCells(r)}</tr>
+            `).join("") || emptyRow(6)}</tbody></table>`;
+        $("content-kind").innerHTML = `
+            <table><thead><tr><th>풀이 방식</th>${statHead}</tr></thead>
+            <tbody>${(data.byKind || []).map(r => `
+                <tr><td>${escapeHtml(r.kind)}</td>${statCells(r)}</tr>
+            `).join("") || emptyRow(5)}</tbody></table>`;
+        $("content-rounds").innerHTML = `
+            <table><thead><tr><th>회차</th><th>자격증</th><th>구분</th>${statHead}</tr></thead>
+            <tbody>${(data.topRounds || []).map(r => `
+                <tr><td>${escapeHtml(r.year)}</td><td>${escapeHtml(certLabel(r.cert))}</td><td>${escapeHtml(modeLabel(r.mode))}</td>${statCells(r)}</tr>
+            `).join("") || emptyRow(7)}</tbody></table>`;
+    }
+
+    // ---------- 제보 ----------
+    function fillSelect(id, values, labelFn, allLabel) {
+        const sel = $(id);
+        const prev = sel.value;
+        sel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>` +
+            values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(labelFn(v))}</option>`).join("");
+        if (values.includes(prev)) sel.value = prev;
+    }
+
+    async function refreshOpenBadge() {
+        try {
+            const data = await api("/api/admin/feedback?status=open&page=1");
+            $("open-badge").textContent = data.counts.open ? String(data.counts.open) : "";
+        } catch (e) {}
+    }
+
+    async function loadFeedback() {
+        setMsg("fb-msg", "");
+        const params = new URLSearchParams({
+            status: $("fb-status").value,
+            category: $("fb-category").value,
+            mode: $("fb-mode").value,
+            q: $("fb-q").value.trim(),
+            page: String(fbPage)
+        });
+        try {
+            const data = await api(`/api/admin/feedback?${params}`);
+            fbPage = data.page;
+            fillSelect("fb-category", data.categories || [], v => v, "모든 분류");
+            fillSelect("fb-mode", data.modes || [], modeLabel, "모든 모드");
+            $("fb-counts").textContent = `미처리 ${fmt(data.counts.open)} · 처리완료 ${fmt(data.counts.done)} · 전체 ${fmt(data.counts.total)}`;
+            $("open-badge").textContent = data.counts.open ? String(data.counts.open) : "";
+
+            $("fb-list").innerHTML = (data.items || []).map(item => `
+                <div class="fb-item">
+                    <div class="fb-meta">
+                        <span class="tag">${escapeHtml(item.category)}</span>
+                        <span class="tag ${item.status === "done" ? "done" : "open"}">${item.status === "done" ? "처리완료" : "미처리"}</span>
+                        <span>${escapeHtml(modeLabel(item.app_mode))}</span>
+                        <span>${escapeHtml(item.kst_time)}</span>
+                        <span>#${escapeHtml(item.id)}</span>
+                    </div>
+                    <div class="fb-body">${escapeHtml(item.message)}</div>
+                    <div class="fb-foot">
+                        <span class="note">사용자 <button type="button" class="link-btn mono" data-fp="${escapeHtml(item.fingerprint)}">${escapeHtml(item.fingerprint)}</button>${item.status === "done" && item.handled_time ? ` · 처리 ${escapeHtml(item.handled_time)}` : ""}</span>
+                        <button type="button" class="btn small" data-fb-id="${escapeHtml(item.id)}" data-next="${item.status === "done" ? "open" : "done"}">${item.status === "done" ? "미처리로 되돌리기" : "처리완료"}</button>
+                    </div>
+                </div>
+            `).join("") || `<p class="note">조건에 맞는 제보가 없습니다.</p>`;
+
+            $("fb-pager").innerHTML = data.totalPages > 1 ? `
+                <button type="button" class="btn small" data-page="${data.page - 1}" ${data.page <= 1 ? "disabled" : ""}>이전</button>
+                <span class="note">${data.page} / ${data.totalPages} (${fmt(data.total)}건)</span>
+                <button type="button" class="btn small" data-page="${data.page + 1}" ${data.page >= data.totalPages ? "disabled" : ""}>다음</button>
+            ` : (data.total ? `<span class="note">${fmt(data.total)}건</span>` : "");
+        } catch (e) {
+            if (e.status !== 401) setMsg("fb-msg", e.message, "error");
+        }
+    }
+
+    $("fb-filters").addEventListener("submit", (ev) => { ev.preventDefault(); fbPage = 1; loadFeedback(); });
+    ["fb-status", "fb-category", "fb-mode"].forEach(id => $(id).addEventListener("change", () => { fbPage = 1; loadFeedback(); }));
+    $("fb-pager").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-page]");
+        if (!btn || btn.disabled) return;
+        fbPage = parseInt(btn.dataset.page, 10);
+        loadFeedback();
+    });
+    $("fb-list").addEventListener("click", async (ev) => {
+        const fpBtn = ev.target.closest("[data-fp]");
+        if (fpBtn) {
+            $("user-fp").value = fpBtn.dataset.fp;
+            switchTab("users");
+            loadUserDetail(fpBtn.dataset.fp);
+            return;
+        }
+        const btn = ev.target.closest("[data-fb-id]");
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+            await api(`/api/admin/feedback/${encodeURIComponent(btn.dataset.fbId)}/status`, { method: "POST", body: { status: btn.dataset.next } });
+            await loadFeedback();
+        } catch (e) {
+            btn.disabled = false;
+            if (e.status !== 401) setMsg("fb-msg", e.message, "error");
+        }
+    });
+
+    // ---------- 사용자 ----------
+    function formatDetail(text) {
+        let obj;
+        try { obj = JSON.parse(text || "{}"); } catch (e) { return escapeHtml(text); }
+        if (!obj || typeof obj !== "object") return escapeHtml(text);
+        return Object.keys(obj).map(k => `${escapeHtml(k)}: ${escapeHtml(typeof obj[k] === "object" ? JSON.stringify(obj[k]) : obj[k])}`).join(" · ");
+    }
+
+    function renderRecentUsers() {
+        $("recent-users").innerHTML = `
+            <table><thead><tr><th>식별값</th><th class="num">활동 수</th><th>마지막 활동</th></tr></thead>
+            <tbody>${latestRecentUsers.map(u => `
+                <tr><td><button type="button" class="link-btn mono" data-fp="${escapeHtml(u.fingerprint)}">${escapeHtml(u.fingerprint)}</button></td>
+                <td class="num">${fmt(u.total_events)}</td><td>${escapeHtml(u.last_active)}</td></tr>
+            `).join("") || emptyRow(3)}</tbody></table>`;
+    }
+
+    async function loadUsers() {
+        setMsg("user-msg", "");
+        try {
+            const stats = await api("/api/admin/stats");
+            renderStats(stats);
+            renderRecentUsers();
+        } catch (e) {
+            if (e.status !== 401) setMsg("user-msg", e.message, "error");
+        }
+    }
+
+    async function loadUserDetail(fp) {
+        setMsg("user-msg", "");
+        if (!fp) return;
+        $("user-detail").innerHTML = `<p class="note">불러오는 중...</p>`;
+        try {
+            const data = await api(`/api/admin/user-detail?fp=${encodeURIComponent(fp)}`);
+            if (!data.logs.length) {
+                $("user-detail").innerHTML = `<p class="note">이 식별값의 활동 기록이 없습니다.</p>`;
+                return;
+            }
+            $("user-detail").innerHTML = `
+                <h3 class="mono">${escapeHtml(fp)}</h3>
+                <div class="chips">${data.summary.map(s => `<span class="tag">${escapeHtml(actionLabel(s.action))} ${fmt(s.cnt)}</span>`).join("")}</div>
+                <h3>최근 활동 ${fmt(data.logs.length)}건</h3>
+                <div class="table-wrap"><table><thead><tr><th>시간</th><th>활동</th><th>내용</th></tr></thead>
+                <tbody>${data.logs.map(l => `
+                    <tr><td style="white-space:nowrap">${escapeHtml(l.kst_time)}</td><td style="white-space:nowrap">${escapeHtml(actionLabel(l.action))}</td><td class="mono">${formatDetail(l.detail)}</td></tr>
+                `).join("")}</tbody></table></div>`;
+        } catch (e) {
+            $("user-detail").innerHTML = "";
+            if (e.status !== 401) setMsg("user-msg", e.message, "error");
+        }
+    }
+
+    $("user-form").addEventListener("submit", (ev) => { ev.preventDefault(); loadUserDetail($("user-fp").value.trim()); });
+    $("recent-users").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-fp]");
+        if (!btn) return;
+        $("user-fp").value = btn.dataset.fp;
+        loadUserDetail(btn.dataset.fp);
+        $("user-detail").scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+
+    // ---------- 공지 ----------
+    $("notice-text").addEventListener("input", () => { $("notice-count").textContent = `${$("notice-text").value.length} / 300`; });
+
+    async function loadNotices() {
+        try {
+            const data = await api("/api/admin/notices");
+            const items = data.items || [];
+            const shownId = (items.find(n => n.active) || {}).id;
+            $("notice-list").innerHTML = items.map(n => `
+                <div class="notice-item">
+                    <div class="fb-meta">
+                        <span class="tag ${n.level === "warn" ? "warn" : ""}">${n.level === "warn" ? "주의" : "안내"}</span>
+                        <span class="tag ${n.id === shownId ? "on" : ""}">${n.id === shownId ? "앱에 표시 중" : (n.active ? "표시 대기" : "숨김")}</span>
+                        <span>${escapeHtml(n.kst_time)}</span>
+                        <span>#${escapeHtml(n.id)}</span>
+                    </div>
+                    <div class="notice-text">${escapeHtml(n.message)}</div>
+                    <div class="row">
+                        <button type="button" class="btn small" data-notice-toggle="${escapeHtml(n.id)}" data-active="${n.active ? "0" : "1"}">${n.active ? "숨기기" : "다시 표시"}</button>
+                        <button type="button" class="btn small danger" data-notice-delete="${escapeHtml(n.id)}">삭제</button>
+                    </div>
+                </div>
+            `).join("") || `<p class="note">등록된 공지가 없습니다.</p>`;
+        } catch (e) {
+            if (e.status !== 401) setMsg("notice-msg", e.message, "error");
+        }
+    }
+
+    $("notice-form").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const message = $("notice-text").value.trim();
+        if (!message) { setMsg("notice-msg", "공지 내용을 입력해 주세요.", "error"); return; }
+        try {
+            await api("/api/admin/notices", { method: "POST", body: { message, level: $("notice-level").value } });
+            $("notice-text").value = "";
+            $("notice-count").textContent = "0 / 300";
+            setMsg("notice-msg", "공지를 등록했습니다. 앱을 새로 열면 보입니다.", "ok");
+            loadNotices();
+        } catch (e) {
+            if (e.status !== 401) setMsg("notice-msg", e.message, "error");
+        }
+    });
+
+    $("notice-list").addEventListener("click", async (ev) => {
+        const toggle = ev.target.closest("[data-notice-toggle]");
+        const del = ev.target.closest("[data-notice-delete]");
+        try {
+            if (toggle) {
+                await api(`/api/admin/notices/${encodeURIComponent(toggle.dataset.noticeToggle)}/active`, { method: "POST", body: { active: toggle.dataset.active === "1" } });
+            } else if (del) {
+                if (!confirm("이 공지를 삭제할까요? 되돌릴 수 없습니다.")) return;
+                await api(`/api/admin/notices/${encodeURIComponent(del.dataset.noticeDelete)}`, { method: "DELETE" });
+            } else {
+                return;
+            }
+            setMsg("notice-msg", "");
+            loadNotices();
+        } catch (e) {
+            if (e.status !== 401) setMsg("notice-msg", e.message, "error");
+        }
+    });
+
+    // ---------- 서버·로그 ----------
+    function fmtBytes(b) {
+        if (!b) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        let i = 0;
+        while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+        return `${b.toFixed(i ? 1 : 0)} ${units[i]}`;
+    }
+    function fmtDuration(sec) {
+        const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+        return (d ? `${d}일 ` : "") + (d || h ? `${h}시간 ` : "") + `${m}분`;
+    }
+
+    async function loadServer() {
+        setMsg("server-msg", "");
+        try {
+            const s = await api("/api/admin/server");
+            const started = new Date(s.startedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+            const rows = [
+                ["가동 시작", started],
+                ["가동 시간", fmtDuration(s.uptimeSec)],
+                ["Node.js", s.nodeVersion],
+                ["메모리", `${fmtBytes(s.memory.rss)} (힙 ${fmtBytes(s.memory.heapUsed)})`],
+                ["풀이 세션 (메모리)", `정보처리기사 ${fmt(s.sessions.qnet)} · 네트워크관리사 ${fmt(s.sessions.net2)}`],
+                ["문항 수", `정처기 필기 ${fmt(s.questions.written)} · 실기 ${fmt(s.questions.practical)} · 네트워크관리사 ${fmt(s.questions.net2Written)}`],
+                ["DB 파일 크기", fmtBytes(s.db.sizeBytes)],
+                ["활동 로그", `${fmt(s.db.activityLogs)}건` + (s.db.oldestLog ? ` (가장 오래된 기록 ${s.db.oldestLog})` : "")],
+                ["제보", `미처리 ${fmt(s.db.openFeedback)} · 전체 ${fmt(s.db.feedback)}`]
+            ];
+            $("server-info").innerHTML = rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("");
+        } catch (e) {
+            if (e.status !== 401) setMsg("server-msg", e.message, "error");
+        }
+    }
+
+    $("cleanup-days").addEventListener("input", () => {
+        cleanupCheckedDays = null;
+        $("cleanup-run").disabled = true;
+        setMsg("cleanup-msg", "");
+    });
+
+    $("cleanup-check").addEventListener("click", async () => {
+        const days = parseInt($("cleanup-days").value, 10);
+        cleanupCheckedDays = null;
+        $("cleanup-run").disabled = true;
+        try {
+            const r = await api("/api/admin/logs/cleanup", { method: "POST", body: { days, dryRun: true } });
+            if (r.count > 0) {
+                cleanupCheckedDays = days;
+                $("cleanup-run").disabled = false;
+                setMsg("cleanup-msg", `${days}일보다 오래된 로그 ${fmt(r.count)}건 (${r.oldest} ~ ${r.newest})이 삭제 대상입니다.`);
+            } else {
+                setMsg("cleanup-msg", `${days}일보다 오래된 로그가 없습니다.`, "ok");
+            }
+        } catch (e) {
+            if (e.status !== 401) setMsg("cleanup-msg", e.message, "error");
+        }
+    });
+
+    $("cleanup-run").addEventListener("click", async () => {
+        const days = cleanupCheckedDays;
+        if (!days) return;
+        if (!confirm(`${days}일보다 오래된 활동 로그를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+        $("cleanup-run").disabled = true;
+        try {
+            const r = await api("/api/admin/logs/cleanup", { method: "POST", body: { days, dryRun: false } });
+            cleanupCheckedDays = null;
+            setMsg("cleanup-msg", `${fmt(r.deleted)}건을 삭제했습니다.`, "ok");
+            loadServer();
+        } catch (e) {
+            $("cleanup-run").disabled = false;
+            if (e.status !== 401) setMsg("cleanup-msg", e.message, "error");
+        }
+    });
+
+    // ---------- 시작 ----------
+    const saved = loadKey();
+    if (saved) {
+        tryLogin(saved);
+    } else {
+        showLogin("");
+    }
+})();
+</script>
+</body>
+</html>

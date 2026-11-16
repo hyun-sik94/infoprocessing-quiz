@@ -2237,7 +2237,7 @@ async function triggerNewQuizSession(customYear, customIds, customSubject, custo
         Object.keys(answerRequests).forEach(k => delete answerRequests[k]);
         sessionQuizData = data.questions;
 
-        logUserAction("START_EXAM", { mode: currentAppMode, year: selectedYear, subject: customSubject || "전체" });
+        logUserAction("START_EXAM", { cert: currentCertType, mode: currentAppMode, year: selectedYear, subject: customSubject || "전체" });
         history.pushState({ screen: 'exam', mode: currentAppMode, cert: currentCertType }, '');
 
         if (resumeState) {
@@ -2785,7 +2785,7 @@ async function submitQuizAnswers() {
         if (activeSessionYear === 'sequential') localStorage.removeItem(getSeqSaveKey());
         if (isRoundYear(activeSessionYear)) clearRoundProgress(activeSessionType || currentAppMode, activeSessionYear);
         saveHistoryToLocal(result);
-        logUserAction("SUBMIT_EXAM", { mode: activeSessionType, score: result.score, isPassed: result.isPassed });
+        logUserAction("SUBMIT_EXAM", { cert: currentCertType, mode: activeSessionType, year: activeSessionYear, score: result.score, isPassed: result.isPassed });
         renderReviewResult(result);
     } catch (e) {
         console.error("제출 오류:", e);
@@ -3096,8 +3096,39 @@ window.openFeedbackModal = function() {
     textEl.focus();
 };
 
+// 관리자가 등록한 공지를 헤더 아래 배너로 보여 준다. 닫은 공지 id만 새 키(cbt_notice_dismissed)에 기억하고, 기존 기록은 건드리지 않는다.
+const NOTICE_DISMISS_KEY = "cbt_notice_dismissed";
+
+function loadNoticeBanner() {
+    const banner = document.getElementById("notice-banner");
+    if (!banner) return;
+    fetch('/api/notice', { cache: 'no-store' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+            const notice = data && data.notice;
+            if (!notice || !notice.message) return;
+            let dismissed = null;
+            try { dismissed = localStorage.getItem(NOTICE_DISMISS_KEY); } catch (e) {}
+            if (dismissed === String(notice.id)) return;
+
+            banner.className = "notice-banner" + (notice.level === "warn" ? " warn" : "");
+            banner.innerHTML = `
+                <span class="notice-banner-icon" aria-hidden="true">${notice.level === "warn" ? "⚠️" : "📢"}</span>
+                <span class="notice-banner-text">${escapeHtml(notice.message)}</span>
+                <button type="button" class="notice-banner-close" aria-label="공지 닫기">✕</button>
+            `;
+            banner.querySelector(".notice-banner-close").addEventListener("click", () => {
+                try { localStorage.setItem(NOTICE_DISMISS_KEY, String(notice.id)); } catch (e) {}
+                banner.style.display = "none";
+            });
+            banner.style.display = "flex";
+        })
+        .catch(() => {});
+}
+
 window.onload = function() {
     initTheme();
+    loadNoticeBanner();
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id');
     const mode = urlParams.get('mode');

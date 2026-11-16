@@ -17,7 +17,9 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             cd /home/ubuntu/infoprocessing-quiz
-            git pull origin main
+            # 이력을 다시 쓴 경우(강제 push)에도 배포되도록 pull 대신 원격 main으로 맞춘다.
+            # feedback.db 등 git이 추적하지 않는 파일은 그대로 남는다.
+            git fetch origin main && git reset --hard origin/main
             npm install --omit=dev
             pm2 reload quiz-app || pm2 restart quiz-app
             pm2 save
